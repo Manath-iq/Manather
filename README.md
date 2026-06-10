@@ -19,16 +19,6 @@ The application is built with a local-first philosophy, utilizing Apple's modern
 
 ---
 
-## Screen Preview
-
-### Main Workspace Grid
-![Main Screen Workspace](examples/main-screen.png)
-
-### Metadata Inspector & Palette Extractor
-![Inspector and Color Palette Details](examples/inspector-view.png)
-
----
-
 ## Technical Stack
 
 * **Language**: Swift 5.10 / Swift 6
@@ -74,16 +64,6 @@ The application is built with a local-first philosophy, utilizing Apple's modern
 4. **Инспектор метаданных**: Удобная боковая панель для редактирования названий, веб-адресов, коллекций/пространств, личных заметок и ИИ-промптов.
 5. **Адаптивная сетка**: Динамическое масштабирование количества колонок (от 2 до 6) с плавными интерактивными эффектами.
 6. **Песочница и файловая система**: Все бинарные файлы копируются во внутреннюю директорию приложения (Application Support), а база данных SwiftData хранит только относительные пути, исключая замедление работы приложения и разрастание базы данных.
-
----
-
-## Скриншоты интерфейса
-
-### Главный рабочий экран
-![Главный экран](examples/main-screen.png)
-
-### Инспектор метаданных и цветовая палитра
-![Инспектор метаданных](examples/inspector-view.png)
 
 ---
 

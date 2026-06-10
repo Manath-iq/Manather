@@ -303,24 +303,228 @@
             overflow: hidden;
             display: block;
             position: relative;
-            aspect-ratio: 16/10;
         }
 
-        .mockup-screen img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            display: block;
-            transition: opacity 0.5s ease;
+        /* CSS-Only App Mockup */
+        .app-window {
+            display: flex;
+            height: 480px;
+            background: #0d0f12;
+            border-bottom-left-radius: 10px;
+            border-bottom-right-radius: 10px;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            text-align: left;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .mock-sidebar {
+            width: 180px;
+            background: rgba(255, 255, 255, 0.01);
+            border-right: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 1.25rem 0.75rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        .sidebar-item {
+            padding: 0.5rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            cursor: default;
+            transition: var(--transition);
+        }
+        
+        .sidebar-item.active {
+            background: rgba(36, 138, 133, 0.15);
+            color: var(--accent-bright);
+            font-weight: 500;
+        }
+        
+        .mock-content {
+            flex: 1;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+            background: rgba(0, 0, 0, 0.15);
+        }
+        
+        .content-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .search-bar {
+            width: 160px;
+            height: 24px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 6px;
+            font-size: 0.75rem;
+            padding: 0 0.5rem;
+            display: flex;
+            align-items: center;
+            color: var(--text-muted);
+        }
+        
+        .mock-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            flex: 1;
+        }
+        
+        .grid-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 0.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            cursor: pointer;
+            transition: var(--transition);
         }
 
-        /* Slideshow functionality */
-        .mockup-screen img.inactive {
+        .grid-card:hover, .grid-card.selected {
+            border-color: rgba(36, 138, 133, 0.4);
+            background: rgba(36, 138, 133, 0.04);
+            transform: translateY(-2px);
+        }
+        
+        .card-image-placeholder {
+            aspect-ratio: 4/3;
+            background: linear-gradient(135deg, #161e20 0%, #0c0f12 100%);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            color: rgba(255, 255, 255, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .card-image-placeholder::after {
+            content: '';
             position: absolute;
-            top: 0;
-            left: 0;
-            opacity: 0;
-            pointer-events: none;
+            width: 150%;
+            height: 150%;
+            background: radial-gradient(circle, rgba(36, 138, 133, 0.15) 0%, transparent 60%);
+            top: -25%;
+            left: -25%;
+        }
+
+        .card-image-placeholder.image-2::after {
+            background: radial-gradient(circle, rgba(234, 179, 8, 0.12) 0%, transparent 60%);
+        }
+
+        .card-image-placeholder.image-3::after {
+            background: radial-gradient(circle, rgba(168, 85, 247, 0.12) 0%, transparent 60%);
+        }
+        
+        .card-title {
+            height: 10px;
+            width: 70%;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+        }
+        
+        .card-meta {
+            height: 6px;
+            width: 40%;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 2px;
+        }
+
+        .color-dots {
+            display: flex;
+            gap: 4px;
+        }
+
+        .color-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+        }
+        
+        .mock-inspector {
+            width: 260px;
+            background: rgba(255, 255, 255, 0.01);
+            border-left: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 1.25rem 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+            transition: var(--transition);
+        }
+        
+        .inspector-title {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding-bottom: 0.5rem;
+        }
+        
+        .inspector-field {
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+        }
+        
+        .field-label {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 600;
+        }
+        
+        .field-box {
+            height: 26px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 6px;
+            font-size: 0.75rem;
+            color: var(--text);
+            padding: 0 0.5rem;
+            display: flex;
+            align-items: center;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+        }
+
+        .field-box.area {
+            height: 76px;
+            align-items: flex-start;
+            padding: 0.4rem 0.5rem;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            line-height: 1.3;
+            white-space: normal;
+        }
+
+        .inspector-colors {
+            display: flex;
+            gap: 6px;
+        }
+
+        .inspector-color-circle {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .mockup-controls {
@@ -628,11 +832,104 @@
                         <div class="mockup-dot dot-red"></div>
                         <div class="mockup-dot dot-yellow"></div>
                         <div class="mockup-dot dot-green"></div>
-                        <div class="mockup-title">Manather — Gallery Grid</div>
+                        <div class="mockup-title" id="mockup-win-title">Manather — Gallery Grid</div>
                     </div>
                     <div class="mockup-screen">
-                        <img id="slide-main" src="assets/main-screen.png" alt="Manather Main Grid Screen">
-                        <img id="slide-inspector" class="inactive" src="assets/inspector-view.png" alt="Manather Inspector Panel">
+                        <div class="app-window">
+                            <!-- Sidebar -->
+                            <div class="mock-sidebar">
+                                <div class="sidebar-item active" id="mock-sb-all">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:2px;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                                    All Assets
+                                </div>
+                                <div class="sidebar-item" id="mock-sb-trash">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:2px;"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                                    Trash
+                                </div>
+                            </div>
+                            
+                            <!-- Main Content Area -->
+                            <div class="mock-content">
+                                <div class="content-header">
+                                    <div style="font-size: 0.8rem; font-weight: 600; color: #fff;">Visual References</div>
+                                    <div class="search-bar">Search references...</div>
+                                </div>
+                                <div class="mock-grid">
+                                    <!-- Card 1 -->
+                                    <div class="grid-card selected" id="mock-card-1" onclick="selectCard(1)">
+                                        <div class="card-image-placeholder image-1">
+                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                                        </div>
+                                        <div class="card-title"></div>
+                                        <div class="card-meta"></div>
+                                        <div class="color-dots">
+                                            <div class="color-dot" style="background: #248a85;"></div>
+                                            <div class="color-dot" style="background: #1e3a38;"></div>
+                                            <div class="color-dot" style="background: #0f2423;"></div>
+                                            <div class="color-dot" style="background: #4cc7c2;"></div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Card 2 -->
+                                    <div class="grid-card" id="mock-card-2" onclick="selectCard(2)">
+                                        <div class="card-image-placeholder image-2">
+                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+                                        </div>
+                                        <div class="card-title" style="width: 50%;"></div>
+                                        <div class="card-meta" style="width: 30%;"></div>
+                                        <div class="color-dots">
+                                            <div class="color-dot" style="background: #eab308;"></div>
+                                            <div class="color-dot" style="background: #713f12;"></div>
+                                            <div class="color-dot" style="background: #a16207;"></div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Card 3 -->
+                                    <div class="grid-card" id="mock-card-3" onclick="selectCard(3)">
+                                        <div class="card-image-placeholder image-3">
+                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="12 2 2 22 22 22"></polygon></svg>
+                                        </div>
+                                        <div class="card-title" style="width: 85%;"></div>
+                                        <div class="card-meta" style="width: 50%;"></div>
+                                        <div class="color-dots">
+                                            <div class="color-dot" style="background: #a855f7;"></div>
+                                            <div class="color-dot" style="background: #581c87;"></div>
+                                            <div class="color-dot" style="background: #c084fc;"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Inspector Panel -->
+                            <div class="mock-inspector" id="mock-inspector-panel" style="display: none;">
+                                <div class="inspector-title">Details</div>
+                                
+                                <div class="inspector-field">
+                                    <div class="field-label">Name</div>
+                                    <div class="field-box" id="mock-inspect-name">Abstract Glass Layout</div>
+                                </div>
+                                
+                                <div class="inspector-field">
+                                    <div class="field-label">URL</div>
+                                    <div class="field-box" id="mock-inspect-url">https://dribbble.com/...</div>
+                                </div>
+                                
+                                <div class="inspector-field">
+                                    <div class="field-label">Dominant Colors</div>
+                                    <div class="inspector-colors" id="mock-inspect-colors">
+                                        <div class="inspector-color-circle" style="background: #248a85;"></div>
+                                        <div class="inspector-color-circle" style="background: #1e3a38;"></div>
+                                        <div class="inspector-color-circle" style="background: #0f2423;"></div>
+                                        <div class="inspector-color-circle" style="background: #4cc7c2;"></div>
+                                    </div>
+                                </div>
+                                
+                                <div class="inspector-field">
+                                    <div class="field-label">Prompt</div>
+                                    <div class="field-box area" id="mock-inspect-prompt">/imagine prompt: abstract frosted glass sheets, organic shapes, teal neon glow, premium aesthetic, 3d render --ar 16:10</div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     <div class="mockup-controls">
                         <button class="mockup-btn active" onclick="showSlide('main')">Gallery Grid</button>
@@ -768,21 +1065,72 @@
     <!-- Interactive slide scripts -->
     <script>
         function showSlide(slideName) {
-            const mainImg = document.getElementById('slide-main');
-            const inspectorImg = document.getElementById('slide-inspector');
+            const inspector = document.getElementById('mock-inspector-panel');
             const buttons = document.querySelectorAll('.mockup-btn');
+            const winTitle = document.getElementById('mockup-win-title');
             
-            // Reset active button class
             buttons.forEach(btn => btn.classList.remove('active'));
             
             if (slideName === 'main') {
-                mainImg.classList.remove('inactive');
-                inspectorImg.classList.add('inactive');
+                inspector.style.display = 'none';
                 buttons[0].classList.add('active');
+                winTitle.innerText = "Manather — Gallery Grid";
+                document.querySelectorAll('.grid-card').forEach(c => c.classList.remove('selected'));
             } else {
-                mainImg.classList.add('inactive');
-                inspectorImg.classList.remove('inactive');
+                inspector.style.display = 'flex';
                 buttons[1].classList.add('active');
+                winTitle.innerText = "Manather — Details Inspector";
+                document.getElementById('mock-card-1').classList.add('selected');
+                selectCard(1);
+            }
+        }
+        
+        function selectCard(cardId) {
+            document.querySelectorAll('.grid-card').forEach(c => c.classList.remove('selected'));
+            document.getElementById('mock-card-' + cardId).classList.add('selected');
+            
+            const nameField = document.getElementById('mock-inspect-name');
+            const urlField = document.getElementById('mock-inspect-url');
+            const colorsField = document.getElementById('mock-inspect-colors');
+            const promptField = document.getElementById('mock-inspect-prompt');
+            const inspector = document.getElementById('mock-inspector-panel');
+            const winTitle = document.getElementById('mockup-win-title');
+            const buttons = document.querySelectorAll('.mockup-btn');
+            
+            // Show inspector when card is clicked
+            inspector.style.display = 'flex';
+            buttons[1].classList.add('active');
+            buttons[0].classList.remove('active');
+            winTitle.innerText = "Manather — Details Inspector";
+            
+            if (cardId === 1) {
+                nameField.innerText = "Abstract Glass Layout";
+                urlField.innerText = "https://dribbble.com/shots/239...";
+                promptField.innerText = "/imagine prompt: abstract frosted glass sheets, organic shapes, teal neon glow, premium aesthetic, 3d render --ar 16:10";
+                colorsField.innerHTML = `
+                    <div class="inspector-color-circle" style="background: #248a85;"></div>
+                    <div class="inspector-color-circle" style="background: #1e3a38;"></div>
+                    <div class="inspector-color-circle" style="background: #0f2423;"></div>
+                    <div class="inspector-color-circle" style="background: #4cc7c2;"></div>
+                `;
+            } else if (cardId === 2) {
+                nameField.innerText = "Framer Website Layout";
+                urlField.innerText = "https://framer.com/feed";
+                promptField.innerText = "Imported Web Link: Headless snapshot rendered automatically by background WebKit.";
+                colorsField.innerHTML = `
+                    <div class="inspector-color-circle" style="background: #eab308;"></div>
+                    <div class="inspector-color-circle" style="background: #713f12;"></div>
+                    <div class="inspector-color-circle" style="background: #a16207;"></div>
+                `;
+            } else if (cardId === 3) {
+                nameField.innerText = "SwiftUI Custom Button Style";
+                urlField.innerText = "Workspace Local Snippet";
+                promptField.innerText = "struct MicroAnimationButtonStyle: ButtonStyle { ... }";
+                colorsField.innerHTML = `
+                    <div class="inspector-color-circle" style="background: #a855f7;"></div>
+                    <div class="inspector-color-circle" style="background: #581c87;"></div>
+                    <div class="inspector-color-circle" style="background: #c084fc;"></div>
+                `;
             }
         }
     </script>
