@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy — Manather</title>
+    <meta name="description" content="Privacy Policy for Manather macOS application. Local-first data storage guidelines.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0b0d10;
+            --bg-deep: #050607;
+            --accent: #248a85;
+            --text: #f5f5f5;
+            --text-muted: #a1a1aa;
+            --glass-bg: rgba(255, 255, 255, 0.03);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --font-display: 'Outfit', sans-serif;
+            --font-sans: 'Inter', sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: var(--font-sans);
+            line-height: 1.6;
+            padding: 0;
+            margin: 0;
+        }
+
+        /* Header */
+        header {
+            padding: 1.5rem 0;
+            background: rgba(11, 13, 16, 0.95);
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        header .container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 0 1.5rem;
+        }
+
+        .logo {
+            font-family: var(--font-display);
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: var(--text);
+        }
+
+        nav a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+        nav a:hover {
+            color: var(--text);
+        }
+
+        /* Main Policy Content */
+        main {
+            max-width: 800px;
+            margin: 4rem auto;
+            padding: 0 1.5rem;
+        }
+
+        h1 {
+            font-family: var(--font-display);
+            font-size: 2.5rem;
+            margin-bottom: 1.5rem;
+            line-height: 1.2;
+        }
+
+        .meta-date {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            margin-bottom: 3rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        h2 {
+            font-family: var(--font-display);
+            font-size: 1.5rem;
+            margin: 2.5rem 0 1rem;
+            color: var(--text);
+            border-bottom: 1px solid var(--glass-border);
+            padding-bottom: 0.5rem;
+        }
+
+        p {
+            color: var(--text-muted);
+            margin-bottom: 1.5rem;
+            font-size: 1rem;
+            font-weight: 300;
+        }
+
+        ul {
+            margin-left: 1.5rem;
+            margin-bottom: 1.5rem;
+            color: var(--text-muted);
+            font-weight: 300;
+        }
+
+        li {
+            margin-bottom: 0.5rem;
+        }
+
+        .contact-box {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            padding: 1.5rem;
+            border-radius: 10px;
+            margin-top: 3rem;
+        }
+
+        .contact-box h3 {
+            font-family: var(--font-display);
+            margin-bottom: 0.5rem;
+            color: var(--text);
+        }
+
+        /* Footer */
+        footer {
+            background: var(--bg-deep);
+            padding: 2.5rem 0;
+            border-top: 1px solid var(--glass-border);
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="container">
+            <div class="logo">
+                <span>Manather</span>
+            </div>
+            <nav>
+                <a href="index.html">← Back to Home</a>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        <h1>Privacy Policy</h1>
+        <div class="meta-date">Last Updated: June 11, 2026</div>
+
+        <p>
+            This Privacy Policy describes how <strong>Manather</strong> ("we", "our", "the application") processes data when you install and run the application. We take your privacy very seriously and are committed to maintaining a completely safe and transparent user experience.
+        </p>
+
+        <h2>1. Local-First Data Processing (Zero Collection)</h2>
+        <p>
+            Manather is designed to be an entirely <strong>local-first, offline-capable database gallery</strong>. 
+        </p>
+        <ul>
+            <li><strong>No Accounts</strong>: You do not need to register, sign in, or create an account to use the application.</li>
+            <li><strong>No Telemetry or Analytics</strong>: The application does not collect, log, or transmit usage statistics, error logs, or behavioral data to any remote server.</li>
+            <li><strong>No Cloud Storage</strong>: All references, images, GIFs, snippets, titles, notes, and prompts remain locally stored on your machine. We do not use third-party cloud hosting or external sync providers in this version.</li>
+        </ul>
+
+        <h2>2. Sandboxed File Storage & Permissions</h2>
+        <p>
+            To ensure highest compliance with macOS security protocols, Manather operates securely within the OS Sandbox.
+        </p>
+        <ul>
+            <li><strong>Application Sandbox</strong>: When you import an image or GIF file into the app, the file is physically copied and isolated inside the application's secure container (typically inside <code>~/Library/Containers/</code> or your system's Application Support folder).</li>
+            <li><strong>Relative File Path Database</strong>: The local SwiftData database stores only the metadata and a relative file path pointing to the copied asset within the container. No absolute file paths or system-wide directory access tokens are tracked.</li>
+        </ul>
+
+        <h2>3. Headless Web View Operations</h2>
+        <p>
+            When you add a web link to catalog a layout reference:
+        </p>
+        <ul>
+            <li>The app creates a headless, on-device instance of WebKit (<code>WKWebView</code>) to load the specified page, render its contents, and capture a static snapshot.</li>
+            <li>This action behaves identically to opening the URL in Safari or another browser on your Mac. No analytical trackers, cookies, or credentials are captured or saved by the application during this snapshot generation.</li>
+        </ul>
+
+        <h2>4. Changes to This Privacy Policy</h2>
+        <p>
+            We may update this policy periodically to reflect updates to the app's functionality. Any changes will be published here inside the repository website.
+        </p>
+
+        <div class="contact-box">
+            <h3>Questions or Concerns?</h3>
+            <p>If you have any questions regarding the application's privacy practices, feel free to contact us or inspect the source code directly on our GitHub page.</p>
+            <p>Email: <a href="mailto:support@manather-app.example">support@manather-app.example</a></p>
+        </div>
+    </main>
+
+    <footer>
+        <p>&copy; 2026 Manather. Developed natively for macOS.</p>
+    </footer>
+
+</body>
+</html>

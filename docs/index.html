@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manather — Intelligent Visual Reference Manager for macOS</title>
+    <meta name="description" content="A premium, native macOS gallery designed for developers, designers, and AI creators to catalog visual reference assets, code snippets, web links, prompts, and color palettes.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0b0d10;
+            --bg-deep: #050607;
+            --accent: #248a85;
+            --accent-glow: rgba(36, 138, 133, 0.15);
+            --accent-bright: #35b0ac;
+            --text: #f5f5f5;
+            --text-muted: #a1a1aa;
+            --glass-bg: rgba(255, 255, 255, 0.03);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --glass-highlight: rgba(255, 255, 255, 0.05);
+            --font-display: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            --shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.5);
+            --transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+
+        /* Reset and Base Styles */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html, body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: var(--font-sans);
+            line-height: 1.6;
+            overflow-x: hidden;
+            scroll-behavior: smooth;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--bg-deep);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #243033;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--accent);
+        }
+
+        /* Ambient Glow Backgrounds */
+        .ambient-glow {
+            position: absolute;
+            width: 600px;
+            height: 600px;
+            border-radius: 50%;
+            background: radial-gradient(circle, var(--accent-glow) 0%, rgba(11, 13, 16, 0) 70%);
+            z-index: -1;
+            pointer-events: none;
+            filter: blur(80px);
+        }
+        .glow-1 { top: -200px; right: -100px; }
+        .glow-2 { bottom: 20%; left: -200px; }
+
+        /* Typography */
+        h1, h2, h3, h4 {
+            font-family: var(--font-display);
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        a {
+            color: var(--accent-bright);
+            text-decoration: none;
+            transition: var(--transition);
+        }
+        a:hover {
+            color: var(--text);
+        }
+
+        /* Layout Containers */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem;
+        }
+
+        /* Navigation Header */
+        header {
+            padding: 1.5rem 0;
+            backdrop-filter: blur(10px);
+            background: rgba(11, 13, 16, 0.8);
+            border-bottom: 1px solid var(--glass-border);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        header .container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-family: var(--font-display);
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: var(--text);
+            letter-spacing: -0.01em;
+        }
+
+        .logo img {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(36, 138, 133, 0.3);
+        }
+
+        nav {
+            display: flex;
+            gap: 2rem;
+            align-items: center;
+        }
+
+        nav a {
+            color: var(--text-muted);
+            font-weight: 500;
+            font-size: 0.95rem;
+        }
+
+        nav a:hover, nav a.active {
+            color: var(--text);
+        }
+
+        .btn-header {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            color: var(--text);
+            padding: 0.5rem 1.25rem;
+            border-radius: 8px;
+            font-weight: 500;
+            font-size: 0.9rem;
+            transition: var(--transition);
+        }
+
+        .btn-header:hover {
+            background: var(--accent);
+            border-color: var(--accent-bright);
+            box-shadow: 0 0 15px var(--accent-glow);
+        }
+
+        /* Hero Section */
+        .hero {
+            padding: 6rem 0 4rem;
+            position: relative;
+            text-align: center;
+        }
+
+        .badge {
+            background: var(--accent-glow);
+            border: 1px solid rgba(36, 138, 133, 0.3);
+            color: var(--accent-bright);
+            padding: 0.35rem 1rem;
+            border-radius: 100px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            display: inline-block;
+            margin-bottom: 1.5rem;
+            animation: fadeIn 1s ease-out;
+        }
+
+        .hero h1 {
+            font-size: 3.5rem;
+            line-height: 1.15;
+            margin-bottom: 1.5rem;
+            color: var(--text);
+            animation: slideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .hero h1 span {
+            background: linear-gradient(135deg, #fff 30%, var(--accent-bright) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero p {
+            font-size: 1.2rem;
+            color: var(--text-muted);
+            max-width: 650px;
+            margin: 0 auto 2.5rem;
+            font-weight: 300;
+            animation: slideUp 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .cta-buttons {
+            display: flex;
+            gap: 1.25rem;
+            justify-content: center;
+            margin-bottom: 4.5rem;
+            animation: slideUp 1s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+            padding: 0.85rem 2rem;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 1.05rem;
+            box-shadow: 0 8px 25px rgba(36, 138, 133, 0.3);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: var(--transition);
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-bright);
+            transform: translateY(-2px);
+            box-shadow: 0 12px 30px rgba(36, 138, 133, 0.45);
+        }
+
+        .btn-secondary {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            color: var(--text);
+            padding: 0.85rem 2rem;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 1.05rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: var(--transition);
+        }
+
+        .btn-secondary:hover {
+            background: var(--glass-highlight);
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        /* Mockup Container */
+        .mockup-container {
+            position: relative;
+            max-width: 1000px;
+            margin: 0 auto;
+            border-radius: 16px;
+            background: var(--bg-deep);
+            padding: 6px;
+            box-shadow: var(--shadow-lg), 0 0 1px 1px rgba(255, 255, 255, 0.1) inset;
+            animation: scaleIn 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .mockup-header {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.02);
+            border-top-left-radius: 12px;
+            border-top-right-radius: 12px;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        .mockup-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+        .dot-red { background: #ff5f56; }
+        .dot-yellow { background: #ffbd2e; }
+        .dot-green { background: #27c93f; }
+
+        .mockup-title {
+            margin: 0 auto;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-family: var(--font-sans);
+            transform: translateX(-14px);
+        }
+
+        .mockup-screen {
+            border-bottom-left-radius: 10px;
+            border-bottom-right-radius: 10px;
+            overflow: hidden;
+            display: block;
+            position: relative;
+            aspect-ratio: 16/10;
+        }
+
+        .mockup-screen img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            transition: opacity 0.5s ease;
+        }
+
+        /* Slideshow functionality */
+        .mockup-screen img.inactive {
+            position: absolute;
+            top: 0;
+            left: 0;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .mockup-controls {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .mockup-btn {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            color: var(--text-muted);
+            padding: 0.4rem 1rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .mockup-btn.active {
+            background: var(--accent);
+            border-color: var(--accent-bright);
+            color: white;
+        }
+
+        /* Features Section */
+        .features {
+            padding: 8rem 0;
+            background: linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
+            position: relative;
+        }
+
+        .section-header {
+            text-align: center;
+            max-width: 600px;
+            margin: 0 auto 4rem;
+        }
+
+        .section-header h2 {
+            font-size: 2.25rem;
+            margin-bottom: 1rem;
+        }
+
+        .section-header p {
+            color: var(--text-muted);
+            font-size: 1.05rem;
+            font-weight: 300;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 2rem;
+        }
+
+        .feature-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 14px;
+            padding: 2.5rem 2rem;
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(36, 138, 133, 0.05) 0%, rgba(255,255,255,0) 100%);
+            opacity: 0;
+            transition: var(--transition);
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(36, 138, 133, 0.25);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .feature-card:hover::before {
+            opacity: 1;
+        }
+
+        .feature-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 10px;
+            background: rgba(36, 138, 133, 0.12);
+            color: var(--accent-bright);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+            border: 1px solid rgba(36, 138, 133, 0.2);
+        }
+
+        .feature-card h3 {
+            font-size: 1.35rem;
+            margin-bottom: 0.75rem;
+            color: var(--text);
+        }
+
+        .feature-card p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            font-weight: 300;
+        }
+
+        /* Tech Spec Section */
+        .tech-spec {
+            padding: 6rem 0;
+            background: var(--bg-deep);
+            border-top: 1px solid var(--glass-border);
+        }
+
+        .spec-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 3rem;
+        }
+
+        @media (min-width: 768px) {
+            .spec-wrapper {
+                flex-direction: row;
+                align-items: center;
+            }
+            .spec-text {
+                flex: 1;
+            }
+            .spec-grid {
+                flex: 1;
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 1.5rem;
+            }
+        }
+
+        .spec-text h2 {
+            font-size: 2.25rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .spec-text p {
+            color: var(--text-muted);
+            margin-bottom: 2rem;
+            font-size: 1.05rem;
+            font-weight: 300;
+        }
+
+        .spec-item {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            padding: 1.5rem;
+            border-radius: 12px;
+        }
+
+        .spec-item h4 {
+            color: var(--accent-bright);
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+        }
+
+        .spec-item p {
+            font-family: var(--font-display);
+            font-weight: 500;
+            font-size: 1.15rem;
+        }
+
+        /* CTA Bottom Section */
+        .cta-bottom {
+            padding: 8rem 0;
+            text-align: center;
+            background: radial-gradient(circle at center, rgba(36, 138, 133, 0.08) 0%, rgba(11, 13, 16, 0) 60%);
+            border-top: 1px solid var(--glass-border);
+        }
+
+        .cta-bottom h2 {
+            font-size: 2.5rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .cta-bottom p {
+            color: var(--text-muted);
+            max-width: 500px;
+            margin: 0 auto 2.5rem;
+            font-size: 1.1rem;
+            font-weight: 300;
+        }
+
+        /* Footer */
+        footer {
+            background: var(--bg-deep);
+            padding: 3rem 0;
+            border-top: 1px solid var(--glass-border);
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        footer .container {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            align-items: center;
+        }
+
+        @media (min-width: 768px) {
+            footer .container {
+                flex-direction: row;
+                justify-content: space-between;
+            }
+        }
+
+        .footer-logo {
+            font-family: var(--font-display);
+            font-weight: 800;
+            font-size: 1.25rem;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .footer-links {
+            display: flex;
+            gap: 2rem;
+        }
+
+        .footer-links a {
+            color: var(--text-muted);
+        }
+        .footer-links a:hover {
+            color: var(--text);
+        }
+
+        /* Keyframes Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes scaleIn {
+            from { opacity: 0; transform: scale(0.96); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        /* Mobile responsiveness adjustments */
+        @media (max-width: 600px) {
+            .hero h1 { font-size: 2.5rem; }
+            .cta-buttons { flex-direction: column; gap: 1rem; }
+            nav { display: none; } /* Simplified mobile view */
+        }
+    </style>
+</head>
+<body>
+    <div class="ambient-glow glow-1"></div>
+    <div class="ambient-glow glow-2"></div>
+
+    <header>
+        <div class="container">
+            <div class="logo">
+                <img src="assets/app-icon.png" alt="Manather Logo">
+                <span>Manather</span>
+            </div>
+            <nav>
+                <a href="#features">Features</a>
+                <a href="#tech-spec">Specifications</a>
+                <a href="support.html">Support</a>
+                <a href="privacy.html">Privacy</a>
+            </nav>
+            <a href="https://github.com/Manath-iq/Manather" class="btn-header" target="_blank">GitHub</a>
+        </div>
+    </header>
+
+    <main>
+        <!-- Hero Section -->
+        <section class="hero">
+            <div class="container">
+                <span class="badge">Local macOS Reference Manager</span>
+                <h1>An Intelligent Space for Your <br><span>Visual References & Snippets</span></h1>
+                <p>
+                    A native, lightning-fast macOS gallery for developers, designers, and AI creators. Organize mockups, automatically extract color palettes, take headless web snapshots, and catalog AI prompts locally.
+                </p>
+                <div class="cta-buttons">
+                    <a href="https://github.com/Manath-iq/Manather" class="btn-primary" target="_blank">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
+                        Get Code on GitHub
+                    </a>
+                    <a href="#features" class="btn-secondary">Learn More</a>
+                </div>
+
+                <!-- Product Slideshow -->
+                <div class="mockup-container">
+                    <div class="mockup-header">
+                        <div class="mockup-dot dot-red"></div>
+                        <div class="mockup-dot dot-yellow"></div>
+                        <div class="mockup-dot dot-green"></div>
+                        <div class="mockup-title">Manather — Gallery Grid</div>
+                    </div>
+                    <div class="mockup-screen">
+                        <img id="slide-main" src="assets/main-screen.png" alt="Manather Main Grid Screen">
+                        <img id="slide-inspector" class="inactive" src="assets/inspector-view.png" alt="Manather Inspector Panel">
+                    </div>
+                    <div class="mockup-controls">
+                        <button class="mockup-btn active" onclick="showSlide('main')">Gallery Grid</button>
+                        <button class="mockup-btn" onclick="showSlide('inspector')">Metadata Inspector</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Features Grid -->
+        <section id="features" class="features">
+            <div class="container">
+                <div class="section-header">
+                    <h2>Engineered for Your Creative Workflow</h2>
+                    <p>No subscriptions, no forced cloud sync, and no tracking. Manather runs securely on your local file system with clean native components.</p>
+                </div>
+
+                <div class="features-grid">
+                    <!-- Feature 1 -->
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                        </div>
+                        <h3>Multi-Format Gallery</h3>
+                        <p>Import and preview static images, animated GIFs, syntax-highlighted code snippets, and active web links side by side in an adaptive, GPU-accelerated grid.</p>
+                    </div>
+
+                    <!-- Feature 2 -->
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="4"></circle><line x1="4.93" y1="4.93" x2="9.17" y2="9.17"></line><line x1="19.07" y1="4.93" x2="14.83" y2="9.17"></line><line x1="14.83" y1="14.83" x2="19.07" y2="19.07"></line><line x1="9.17" y1="14.83" x2="4.93" y2="19.07"></line></svg>
+                        </div>
+                        <h3>Palette Extractor</h3>
+                        <p>Analyze pixel values on-the-fly. The built-in quantization engine extracts up to 8 dominant colors and copies hex values straight to your clipboard in one tap.</p>
+                    </div>
+
+                    <!-- Feature 3 -->
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+                        </div>
+                        <h3>Headless Web Preview</h3>
+                        <p>Add web URLs to save layout reference pages. Manather utilizes headless web views to automatically render and save a high-resolution snapshot preview of the page.</p>
+                    </div>
+
+                    <!-- Feature 4 -->
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path><path d="M2 12h20"></path></svg>
+                        </div>
+                        <h3>AI Prompt Manager</h3>
+                        <p>Store precise Midjourney, Stable Diffusion, or LLM generation prompts. Use the rapid metadata fields and instantly copy prompts for reiterative generations.</p>
+                    </div>
+
+                    <!-- Feature 5 -->
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l-7 4a2 2 0 0 0 2 0l7-4a2 2 0 0 0 1-1.73z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+                        </div>
+                        <h3>Sandbox Performance</h3>
+                        <p>Keeps the database slim and fast. The app copies binary files into a secure local container and stores only relative paths, avoiding database fragmentation.</p>
+                    </div>
+
+                    <!-- Feature 6 -->
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                        </div>
+                        <h3>Dynamic Filter & Search</h3>
+                        <p>Instantly find assets based on Title, Source URL, Space, Collection, or generation prompts. Filtering is performant even with thousands of items.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Technical Specifications -->
+        <section id="tech-spec" class="tech-spec">
+            <div class="container">
+                <div class="spec-wrapper">
+                    <div class="spec-text">
+                        <h2>Technical Architecture</h2>
+                        <p>
+                            Manather is developed specifically for Apple Silicon and Intel Macs running modern macOS systems. It fully integrates native components like SwiftUI, SwiftData, and AppKit's visual blur sheets.
+                        </p>
+                    </div>
+                    <div class="spec-grid">
+                        <div class="spec-item">
+                            <h4>Target OS</h4>
+                            <p>macOS 14.0 Sonoma & newer</p>
+                        </div>
+                        <div class="spec-item">
+                            <h4>Persistence</h4>
+                            <p>SwiftData (Local DB)</p>
+                        </div>
+                        <div class="spec-item">
+                            <h4>Arch/Core</h4>
+                            <p>Universal Binary (Apple Silicon / Intel)</p>
+                        </div>
+                        <div class="spec-item">
+                            <h4>Offline-First</h4>
+                            <p>100% On-Device, No Sign-in Required</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- CTA Bottom -->
+        <section class="cta-bottom">
+            <div class="container">
+                <h2>Ready to clean up your visual references?</h2>
+                <p>Download, build, and run the native macOS application right from source or get started by reviewing the codebase.</p>
+                <a href="https://github.com/Manath-iq/Manather" class="btn-primary" target="_blank">
+                    Explore Codebase on GitHub
+                </a>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="container">
+            <div class="footer-logo">
+                <span>Manather</span>
+            </div>
+            <div class="footer-links">
+                <a href="support.html">Support</a>
+                <a href="privacy.html">Privacy Policy</a>
+            </div>
+            <p>&copy; 2026 Manather. Developed natively for macOS.</p>
+        </div>
+    </footer>
+
+    <!-- Interactive slide scripts -->
+    <script>
+        function showSlide(slideName) {
+            const mainImg = document.getElementById('slide-main');
+            const inspectorImg = document.getElementById('slide-inspector');
+            const buttons = document.querySelectorAll('.mockup-btn');
+            
+            // Reset active button class
+            buttons.forEach(btn => btn.classList.remove('active'));
+            
+            if (slideName === 'main') {
+                mainImg.classList.remove('inactive');
+                inspectorImg.classList.add('inactive');
+                buttons[0].classList.add('active');
+            } else {
+                mainImg.classList.add('inactive');
+                inspectorImg.classList.remove('inactive');
+                buttons[1].classList.add('active');
+            }
+        }
+    </script>
+</body>
+</html>
