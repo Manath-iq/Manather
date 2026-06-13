@@ -213,6 +213,8 @@ struct ContentView: View {
     @Query(sort: \AssetItem.dateAdded, order: .reverse) private var allAssets: [AssetItem]
 
     @AppStorage("isDarkMode") private var isDarkMode = false
+    // Global UI zoom (⌘+ / ⌘- / ⌘0), like Notes or Messages.
+    @AppStorage("uiZoom") private var uiZoom: Double = 1.0
     @Namespace private var galleryNamespace
 
     @State private var selectedCategory: SidebarCategory = .all
@@ -222,19 +224,29 @@ struct ContentView: View {
     @State private var isImporting: Bool = false
 
     var body: some View {
-        ZStack {
-            LibraryAmbientBackground(featuredAsset: allAssets.first { !$0.isDeleted && !$0.isTrash })
+        GeometryReader { geo in
+            ZStack {
+                LibraryAmbientBackground(featuredAsset: allAssets.first { !$0.isDeleted && !$0.isTrash })
 
-            GalleryGridView(
-                assets: allAssets.filter { !$0.isDeleted },
-                selectedCategory: $selectedCategory,
-                selectedAsset: $selectedAsset,
-                searchText: $searchText,
-                columnCount: $columnCount,
-                isImporting: $isImporting,
-                animationNamespace: galleryNamespace
-            )
+                GalleryGridView(
+                    assets: allAssets.filter { !$0.isDeleted },
+                    selectedCategory: $selectedCategory,
+                    selectedAsset: $selectedAsset,
+                    searchText: $searchText,
+                    columnCount: $columnCount,
+                    isImporting: $isImporting,
+                    animationNamespace: galleryNamespace
+                )
+            }
+            // Zoom recipe: lay out at the inverse size, scale up to fill, then pin
+            // to the real size. This makes the whole UI reflow (not just blur).
+            .frame(width: geo.size.width / uiZoom, height: geo.size.height / uiZoom)
+            .scaleEffect(uiZoom, anchor: .topLeading)
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
+            .clipped()
+            .animation(ManatherTheme.uiMotion, value: uiZoom)
         }
+        .ignoresSafeArea()
         .focusEffectDisabled()
         // Single source of truth for the viewer open/close animation —
         // every place that sets selectedAsset gets the same smooth motion.

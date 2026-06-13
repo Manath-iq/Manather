@@ -10,6 +10,9 @@ import SwiftData
 
 @main
 struct manatherApp: App {
+    // Shared with ContentView via the same AppStorage key.
+    @AppStorage("uiZoom") private var uiZoom: Double = 1.0
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             AssetItem.self,
@@ -65,6 +68,24 @@ struct manatherApp: App {
         .commands {
             SidebarCommands()
             ToolbarCommands()
+            CommandGroup(after: .sidebar) {
+                Button("Zoom In") {
+                    uiZoom = min(uiZoom + 0.1, 1.6)
+                }
+                .keyboardShortcut("+", modifiers: .command)
+
+                Button("Zoom Out") {
+                    uiZoom = max(uiZoom - 0.1, 0.7)
+                }
+                .keyboardShortcut("-", modifiers: .command)
+
+                Button("Actual Size") {
+                    uiZoom = 1.0
+                }
+                .keyboardShortcut("0", modifiers: .command)
+
+                Divider()
+            }
         }
     }
 }
