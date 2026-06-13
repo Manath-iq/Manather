@@ -28,3 +28,7 @@ xcuserdata/
 # Other
 *.swp
 *~
+
+# Personal / internal docs (not for the public repo)
+manather_todo_description.md
+manather_mvp_specification.pdf
