@@ -106,6 +106,32 @@ extension View {
     }
 }
 
+/// Subtle "lift" on hover — a small scale-up plus a deeper shadow.
+/// Used to give every card in the app the same tactile response.
+struct HoverLift: ViewModifier {
+    var scale: CGFloat = 1.02
+    var liftedRadius: CGFloat = 12
+    @State private var isHovered = false
+
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(isHovered ? scale : 1.0)
+            .shadow(
+                color: Color.black.opacity(isHovered ? 0.15 : 0.05),
+                radius: isHovered ? liftedRadius : 5,
+                y: isHovered ? 6 : 2
+            )
+            .animation(.spring(response: 0.35, dampingFraction: 0.72), value: isHovered)
+            .onHover { isHovered = $0 }
+    }
+}
+
+extension View {
+    func hoverLift(scale: CGFloat = 1.02, liftedRadius: CGFloat = 12) -> some View {
+        modifier(HoverLift(scale: scale, liftedRadius: liftedRadius))
+    }
+}
+
 struct LibraryAmbientBackground: View {
     let featuredAsset: AssetItem?
     @State private var backgroundImage: NSImage?

@@ -644,19 +644,25 @@ struct GalleryGridView: View {
     private var categoryTabs: some View {
         HStack(spacing: 28) {
             ForEach(SidebarCategory.allCases) { category in
+                let isSelected = selectedCategory == category
                 Button {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    withAnimation(ManatherTheme.uiMotion) {
                         selectedCategory = category
                     }
                 } label: {
                     Text(category.rawValue)
-                        .font(.system(size: 14, weight: selectedCategory == category ? .bold : .medium))
-                        .foregroundStyle(selectedCategory == category ? Color.primary : Color.primary.opacity(0.38))
+                        .font(.system(size: 14, weight: isSelected ? .bold : .medium))
+                        .foregroundStyle(isSelected ? Color.primary : Color.primary.opacity(0.38))
                         .padding(.bottom, 10)
                         .overlay(alignment: .bottom) {
-                            Capsule()
-                                .fill(selectedCategory == category ? Color.primary : Color.clear)
-                                .frame(height: 2.5)
+                            // The underline is a single shared shape that glides
+                            // to the selected category instead of blinking on/off.
+                            if isSelected {
+                                Capsule()
+                                    .fill(Color.primary)
+                                    .frame(height: 2.5)
+                                    .matchedGeometryEffect(id: "categoryUnderline", in: animationNamespace)
+                            }
                         }
                 }
                 .buttonStyle(.plain)
@@ -753,6 +759,7 @@ struct GalleryGridView: View {
                         }
                     } label: {
                         folderCard(title: name, count: items.count, items: items)
+                            .hoverLift()
                     }
                     .buttonStyle(.plain)
                 }
@@ -776,6 +783,7 @@ struct GalleryGridView: View {
                         }
                     } label: {
                         spaceCard(title: name, count: items.count, items: items)
+                            .hoverLift()
                     }
                     .buttonStyle(.plain)
                     .contextMenu {
@@ -1100,6 +1108,7 @@ struct GalleryGridView: View {
                         }
                     } label: {
                         collectionStackCard(name: name, items: items)
+                            .hoverLift(scale: 1.03)
                     }
                     .buttonStyle(.plain)
                 }
