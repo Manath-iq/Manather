@@ -15,7 +15,7 @@ final class WebsiteScreenshotManager {
     static let shared = WebsiteScreenshotManager()
     
     private var activeTasks: [UUID: ScreenshotTask] = [:]
-    private var pendingAssets: [(AssetItem, ModelContext)] = []
+    private var pendingAssets: [(UUID, URL, ModelContext)] = []
     private let maxConcurrent = 2 // Limit WKWebViews to prevent memory spikes
     
     private init() {}
@@ -34,22 +34,20 @@ final class WebsiteScreenshotManager {
         }
         
         // Check if the asset is already in the pending queue
-        if pendingAssets.contains(where: { $0.0.id == assetID }) {
+        if pendingAssets.contains(where: { $0.0 == assetID }) {
             return
         }
         
         // Queue if at capacity
         if activeTasks.count >= maxConcurrent {
-            pendingAssets.append((asset, context))
+            pendingAssets.append((assetID, url, context))
             return
         }
         
-        startTask(for: asset, url: url, in: context)
+        startTask(for: assetID, url: url, in: context)
     }
     
-    private func startTask(for asset: AssetItem, url: URL, in context: ModelContext) {
-        let assetID = asset.id
-        
+    private func startTask(for assetID: UUID, url: URL, in context: ModelContext) {
         let task = ScreenshotTask(url: url, assetID: assetID) { [weak self] nsImage in
             guard let self = self else { return }
             self.activeTasks.removeValue(forKey: assetID)
@@ -95,10 +93,12 @@ final class WebsiteScreenshotManager {
     
     private func processPending() {
         while activeTasks.count < maxConcurrent, !pendingAssets.isEmpty {
-            let (asset, context) = pendingAssets.removeFirst()
-            guard asset.relativeFilePath.isEmpty,
-                  let url = URL(string: asset.sourceURL) else { continue }
-            startTask(for: asset, url: url, in: context)
+            let (assetID, url, context) = pendingAssets.removeFirst()
+            // Verify asset still exists and doesn't have a path
+            let descriptor = FetchDescriptor<AssetItem>(predicate: #Predicate { $0.id == assetID })
+            if let asset = try? context.fetch(descriptor).first, asset.relativeFilePath.isEmpty {
+                startTask(for: assetID, url: url, in: context)
+            }
         }
     }
 }

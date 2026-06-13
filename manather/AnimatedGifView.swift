@@ -31,10 +31,9 @@ struct AnimatedGifView: NSViewRepresentable {
 
         // Load off main thread to prevent jank
         let targetURL = url
-        DispatchQueue.global(qos: .utility).async {
+        Task.detached(priority: .utility) {
             let image = NSImage(contentsOf: targetURL)
-            DispatchQueue.main.async {
-                // Verify URL hasn't changed during load
+            await MainActor.run {
                 if context.coordinator.loadedURL == targetURL {
                     nsView.image = image
                 }

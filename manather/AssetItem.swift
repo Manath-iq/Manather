@@ -14,6 +14,20 @@ enum AssetType: String, Codable {
     case gif
     case webLink
     case codeSnippet
+    case mcpServer   // MCP server config: launch command + JSON config in codeContent
+    case skill       // Markdown instructions for an AI agent (Claude Code skill etc.)
+
+    var iconName: String {
+        switch self {
+        case .image: return "photo"
+        case .video: return "film"
+        case .gif: return "photo.stack"
+        case .webLink: return "globe"
+        case .codeSnippet: return "curlybraces"
+        case .mcpServer: return "server.rack"
+        case .skill: return "sparkles.rectangle.stack"
+        }
+    }
 }
 
 @Model
@@ -39,6 +53,12 @@ final class AssetItem {
     var collectionName: String? = nil
     var spaceName: String? = nil
 
+    // Soft-delete flag (set before modelContext.delete so animations finish cleanly)
+    var isDeleted: Bool = false
+
+    // Tags (flat string array — fast for small libraries, no join overhead)
+    var tags: [String] = []
+
     var assetType: AssetType {
         get { AssetType(rawValue: typeRaw) ?? .image }
         set { typeRaw = newValue.rawValue }
@@ -53,7 +73,9 @@ final class AssetItem {
     var fileFormat: String {
         if assetType == .webLink { return "URL" }
         if assetType == .codeSnippet { return codeLanguage?.uppercased() ?? "CODE" }
-        
+        if assetType == .mcpServer { return "MCP" }
+        if assetType == .skill { return "SKILL" }
+
         let ext = (relativeFilePath as NSString).pathExtension.uppercased()
         if ext == "JPG" { return "JPEG" }
         return ext.isEmpty ? "IMG" : ext
@@ -72,7 +94,8 @@ final class AssetItem {
         codeContent: String? = nil,
         dominantColorsHex: [String]? = nil,
         collectionName: String? = nil,
-        spaceName: String? = nil
+        spaceName: String? = nil,
+        tags: [String] = []
     ) {
         self.id = UUID()
         self.title = title
@@ -90,5 +113,7 @@ final class AssetItem {
         self.dominantColorsHex = dominantColorsHex
         self.collectionName = collectionName
         self.spaceName = spaceName
+        self.isDeleted = false
+        self.tags = tags
     }
 }

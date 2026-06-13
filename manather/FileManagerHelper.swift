@@ -9,6 +9,7 @@ import Foundation
 import AppKit
 import UniformTypeIdentifiers
 import AVFoundation
+import ImageIO
 
 // MARK: - Image Cache
 
@@ -180,9 +181,12 @@ final class ImageCache {
 
     /// Estimate memory cost of an NSImage in bytes
     private func estimateCost(for image: NSImage) -> Int {
-        let size = image.size
-        // 4 bytes per pixel (RGBA), approximate
-        return Int(size.width * size.height * 4)
+        if let rep = image.representations.first {
+            let w = rep.pixelsWide > 0 ? rep.pixelsWide : Int(image.size.width)
+            let h = rep.pixelsHigh > 0 ? rep.pixelsHigh : Int(image.size.height)
+            return w * h * 4
+        }
+        return Int(image.size.width * image.size.height * 4)
     }
 }
 
@@ -379,19 +383,14 @@ struct FileManagerHelper {
             return (640, 360) // Fallback video size
         }
 
-        guard let nsImage = NSImage(contentsOf: url) else { return nil }
-
-        if let rep = nsImage.representations.first {
-            let w = rep.pixelsWide
-            let h = rep.representationsHigh
-            if w > 0 && h > 0 {
-                return (Double(w), Double(h))
-            }
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let w = props[kCGImagePropertyPixelWidth] as? Double,
+              let h = props[kCGImagePropertyPixelHeight] as? Double,
+              w > 0, h > 0 else {
+            return nil
         }
-
-        let size = nsImage.size
-        guard size.width > 0 && size.height > 0 else { return nil }
-        return (Double(size.width), Double(size.height))
+        return (w, h)
     }
 
     static func imageDimensions(relativePath: String) async -> (width: Double, height: Double)? {
@@ -411,19 +410,14 @@ struct FileManagerHelper {
             return (640, 360) // Fallback
         }
 
-        guard let nsImage = NSImage(contentsOf: url) else { return nil }
-
-        if let rep = nsImage.representations.first {
-            let w = rep.pixelsWide
-            let h = rep.pixelsHigh
-            if w > 0 && h > 0 {
-                return (Double(w), Double(h))
-            }
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let w = props[kCGImagePropertyPixelWidth] as? Double,
+              let h = props[kCGImagePropertyPixelHeight] as? Double,
+              w > 0, h > 0 else {
+            return nil
         }
-
-        let size = nsImage.size
-        guard size.width > 0 && size.height > 0 else { return nil }
-        return (Double(size.width), Double(size.height))
+        return (w, h)
     }
 
     /// Legacy convenience — use ImageCache.shared.fullImage instead for cached access.
@@ -432,9 +426,3 @@ struct FileManagerHelper {
     }
 }
 
-// Private helper to avoid compilation issue on older macOS versions
-extension NSImageRep {
-    fileprivate var representationsHigh: Int {
-        return pixelsHigh
-    }
-}

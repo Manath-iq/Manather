@@ -1,93 +1,138 @@
-# Manather (macOS Application)
+<div align="center">
 
-[Русская версия ниже](#ru-описание-приложения-manather)
+<img src="docs/assets/app-icon.png" width="120" alt="Manather icon" />
 
-Manather is a native, intelligent desktop gallery for developers, designers, and AI enthusiasts. It is designed to organize, store, and manage visual references, interface screenshots, code snippets, web links, and their associated metadata (such as generation prompts, source URLs, and personal notes).
+# Manather
 
-The application is built with a local-first philosophy, utilizing Apple's modern frameworks for high performance, smooth animations, and sandbox compliance.
+**The native macOS library for vibe-coders.**
+Collect references, skills, MCP servers, snippets, and prompts — then export any project as a ready-to-use context pack for your AI agent.
 
----
+[![Platform](https://img.shields.io/badge/platform-macOS%2014%2B-black?logo=apple)](https://www.apple.com/macos/)
+[![Swift](https://img.shields.io/badge/Swift-5.9-orange?logo=swift&logoColor=white)](https://swift.org)
+[![SwiftUI](https://img.shields.io/badge/SwiftUI-SwiftData-blue?logo=swift&logoColor=white)](https://developer.apple.com/xcode/swiftui/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-## Key Features
-
-1. **Multi-Format Assets**: Organize static images, animated GIFs, web links, and syntax-highlighted code snippets in a single visual workspace.
-2. **Headless Web Screenshotting**: When importing web links, the application uses an off-screen `WKWebView` to automatically render and save a high-quality preview screenshot.
-3. **Color Palette Extraction**: Automatically extracts the dominant color palette (up to 8 colors) from imported images and allows copying HEX codes to the clipboard in one click.
-4. **Metadata Inspector**: A fully integrated side panel that allows viewing and editing details like Titles, Source URLs, Space/Collection groupings, Notes, and AI Prompts.
-5. **Interactive Grid**: A responsive grid layout supporting dynamic column resizing (from 2 to 6 columns) with fluid spring animations.
-6. **Local Sandbox Architecture**: Files are copied directly into the app's secure container (Application Support), storing only relative paths in the SwiftData database to prevent performance degradation and memory bloating.
+</div>
 
 ---
 
-## Technical Stack
+## What is Manather?
 
-* **Language**: Swift 5.10 / Swift 6
-* **UI Framework**: SwiftUI (utilizing native macOS patterns, responsive split views, and micro-animations)
-* **Database**: SwiftData (local persistence container)
-* **Web Integration**: WebKit (`WKWebView` snapshot rendering)
-* **OS Target**: macOS 14.0 Sonoma and newer
+Vibe-coders build projects by feeding AI agents the right context: design references, reusable
+skills, MCP server configs, code snippets, reference links, and carefully tuned prompts. Today that
+context lives scattered across folders, screenshots, and chat history.
 
----
+**Manather is one home for all of it.** Drop in everything you want your AI to know about a project,
+organize it visually, and when you're ready — **export the whole project as a "context pack"**: a
+clean folder with the asset files, a generated `CONTEXT.md`, and a `manifest.json`. Drop that folder
+into a repo, point Claude Code (or any agent) at it, and let it build.
 
-## Local Development & Setup
-
-### Requirements
-* macOS Sonoma (14.0) or higher
-* Xcode 15.0 or higher
-
-### Building the App
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/Manath-iq/Manather.git
-   ```
-2. Open `manather.xcodeproj` in Xcode.
-3. Select the `manather` scheme.
-4. Select **Product > Build** (Cmd+B) or **Product > Run** (Cmd+R) to compile and launch the application locally.
+> Manather borrows its visual language from GatherOS, but it's a different product: a **build-context
+> manager for AI-assisted development**, not a design-reference gallery.
 
 ---
 
-<br>
+## Features
 
-# RU: Описание приложения "Manather"
+### 📚 A library for every building block
+- **Images, GIFs, video** — visual references, design screenshots, background clips
+- **Web links** — bookmarks with auto-generated page screenshots (headless `WKWebView`)
+- **Code snippets** — syntax-labeled, reusable patterns
+- **MCP servers** — launch command + JSON config, so you never lose a server setup
+- **Skills** — markdown instructions for AI agents (Claude Code skills and similar)
 
-**Manather** — это интеллектуальная десктопная галерея для разработчиков, дизайнеров и ИИ-энтузиастов, предназначенная для упорядоченного хранения визуальных референсов, скриншотов интерфейсов, фрагментов кода, веб-ссылок и сопутствующих метаданных (включая промпты генерации и текстовые заметки).
+### 🎨 Find things fast
+- **Pinterest-style masonry grid** with a live 2–6 column slider
+- **Color filter** — 7 base colors; dominant palettes are extracted on import and matched by hue
+- **Search** across titles, prompts, notes, tags, and code
+- **Sort** by recency or name
 
-Приложение разработано на базе локальной архитектуры (local-first) с использованием современных фреймворков Apple, что гарантирует высокую производительность, плавные анимации и безопасность данных в рамках песочницы macOS.
+### 🗂 Organize into Projects
+- Group any asset into a **Collection** or a **Project**
+- Tag freely, with one-click **Auto-tag**
+- Store an **AI prompt** and free-form **notes** on every asset
+
+### 📦 Export Context Pack — the killer feature
+Right-click any project → **Export Context Pack**. Manather writes:
+```
+my-project-context-pack/
+├── CONTEXT.md          # LLM-readable brief: skills, MCP servers, snippets, links, references
+├── manifest.json       # machine-readable index of every asset
+├── assets/             # copied image / video files
+├── skills/             # each skill as a .md file
+└── snippets/           # each snippet in its native extension
+```
+Hand the folder to an AI agent and it has everything it needs to start.
+
+### 🖼 Detail view
+A full-screen viewer with pinch-to-zoom, keyboard navigation, a glassmorphic inspector, and a
+live color palette you can copy to the clipboard.
 
 ---
 
-## Основные возможности
+## Screenshots
 
-1. **Мультиформатность**: Хранение статических картинок, GIF-анимаций, веб-ссылок и фрагментов кода с поддержкой подсветки синтаксиса в одной единой сетке.
-2. **Фоновые скриншоты сайтов**: При добавлении веб-ссылки приложение автоматически рендерит страницу в скрытом компоненте `WKWebView` и сохраняет её графический снимок как превью.
-3. **Генерация цветовой палитры**: Автоматический разбор изображения на 8 доминантных цветов с возможностью копирования HEX-кода цвета в буфер обмена в один клик.
-4. **Инспектор метаданных**: Удобная боковая панель для редактирования названий, веб-адресов, коллекций/пространств, личных заметок и ИИ-промптов.
-5. **Адаптивная сетка**: Динамическое масштабирование количества колонок (от 2 до 6) с плавными интерактивными эффектами.
-6. **Песочница и файловая система**: Все бинарные файлы копируются во внутреннюю директорию приложения (Application Support), а база данных SwiftData хранит только относительные пути, исключая замедление работы приложения и разрастание базы данных.
+> _Coming soon._ Clone, build, and run locally to see it in action (~30s in Xcode).
 
 ---
 
-## Технологический стек
+## Getting Started
 
-* **Язык**: Swift 5.10 / Swift 6
-* **Интерфейс**: SwiftUI (с нативными гайдлайнами macOS, NavigationSplitView и микро-анимациями)
-* **Хранилище данных**: SwiftData (локальная база данных)
-* **Рендеринг**: WebKit (фоновое создание скриншотов через WKSnapshotConfiguration)
-* **Поддерживаемая ОС**: macOS 14.0 Sonoma и новее
+**Requirements:** macOS 14 (Sonoma) or later, Xcode 16+.
+
+```bash
+git clone https://github.com/Manath-iq/Manather.git
+cd Manather
+open manather.xcodeproj
+```
+
+Press **⌘R** in Xcode to build and run. No external dependencies — everything is built on Apple
+frameworks (SwiftUI, SwiftData, ImageIO, AVFoundation, WebKit).
 
 ---
 
-## Локальная сборка и запуск
+## Tech Stack
 
-### Требования
-* macOS Sonoma (14.0) или более новая версия
-* Xcode 15.0 или выше
+| Layer | Technology |
+|---|---|
+| UI | SwiftUI + AppKit bridges |
+| Data | SwiftData (local-first, sandboxed) |
+| Masonry layout | Custom column distribution |
+| Thumbnails | ImageIO / CoreGraphics with an `NSCache` tier |
+| Color extraction | CoreGraphics bitmap sampling + hue bucketing |
+| Web previews | Headless `WKWebView` |
+| Storage | `~/Library/Application Support/ManatherAssets/` |
 
-### Шаги для сборки
-1. Склонируйте репозиторий:
-   ```bash
-   git clone https://github.com/Manath-iq/Manather.git
-   ```
-2. Откройте файл `manather.xcodeproj` в Xcode.
-3. Убедитесь, что выбран таргет `manather`.
-4. Нажмите **Product > Build** (Cmd+B) для компиляции или **Product > Run** (Cmd+R) для запуска приложения на вашем Mac.
+Files are copied into the app's container; the database stores only relative paths — no memory bloat,
+no broken links when originals move.
+
+---
+
+## Roadmap
+
+**MVP (now)**
+- [x] Multi-type library: images, video, GIFs, links, snippets
+- [x] Skills & MCP server types
+- [x] Color filter, search, sort
+- [x] Projects + Context Pack export
+- [ ] App icon polish & screenshots
+
+**Next**
+- [ ] Many-to-many: one asset across multiple projects
+- [ ] Canvas board inside a project (moodboard)
+- [ ] AI provider: prompt-based image variations, vision auto-tagging, AI-written `CONTEXT.md`
+- [ ] Auto-import skills / MCP configs from `~/.claude/`
+- [ ] Project templates (preloaded packs)
+- [ ] Export straight into a git repo
+
+See [`CLAUDE.md`](CLAUDE.md) for the full product spec.
+
+---
+
+## Contributing
+
+This is an early-stage MVP and ideas are welcome. Open an issue to discuss a feature, or send a PR.
+
+## License
+
+[MIT](LICENSE) © [Manath-iq](https://github.com/Manath-iq)

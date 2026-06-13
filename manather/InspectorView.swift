@@ -30,6 +30,8 @@ struct InspectorView: View {
     @State private var isLoadingColors = false
     @State private var showCopiedToast = false
     @State private var copiedHex = ""
+    @State private var isNoteExpanded = false
+    @State private var showVariationHint = false
 
     var body: some View {
         Group {
@@ -43,7 +45,7 @@ struct InspectorView: View {
         .background(
             ZStack {
                 VisualEffectView(material: .underWindowBackground, blendingMode: .withinWindow)
-                Color(red: 0.015, green: 0.03, blue: 0.04, opacity: 0.85)
+                Color(red: 0.045, green: 0.05, blue: 0.055, opacity: 0.85)
             }
         )
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -95,6 +97,10 @@ struct InspectorView: View {
 
                 // Color Palette
                 colorPaletteSection(for: asset)
+                    .padding(.bottom, 14)
+
+                // Generate Variation (AI panel)
+                generateVariationButton
                     .padding(.bottom, 20)
 
                 // Name
@@ -119,44 +125,9 @@ struct InspectorView: View {
                 )
                 .padding(.bottom, 16)
 
-                // Collection
-                sectionLabel("Collection")
-                darkTextField(
-                    text: Binding(
-                        get: { asset.collectionName ?? "" },
-                        set: { asset.collectionName = $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 }
-                    ),
-                    placeholder: "None (Unassigned)"
-                )
-                .padding(.bottom, 16)
-
-                // Space
-                sectionLabel("Space")
-                darkTextField(
-                    text: Binding(
-                        get: { asset.spaceName ?? "" },
-                        set: { asset.spaceName = $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 }
-                    ),
-                    placeholder: "Default Space"
-                )
-                .padding(.bottom, 16)
-
-                // Notes
-                HStack {
-                    Text("Note")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(InspectorColors.secondaryText)
-                    Spacer()
-                }
-                .padding(.bottom, 6)
-                darkTextEditor(
-                    text: Binding(
-                        get: { asset.notes },
-                        set: { asset.notes = $0 }
-                    ),
-                    minHeight: 50
-                )
-                .padding(.bottom, 20)
+                // Note — collapsed "+ Add a note" until clicked or non-empty
+                noteSection(for: asset)
+                    .padding(.bottom, 20)
 
                 // Image Prompt
                 HStack(alignment: .center) {
@@ -192,7 +163,7 @@ struct InspectorView: View {
                     Button {
                         copyToClipboard(asset.prompt)
                     } label: {
-                        Image(systemName: "doc.on.doc")
+                        Image(systemName: "arrow.clockwise")
                             .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(InspectorColors.tertiaryText)
                     }
@@ -209,6 +180,32 @@ struct InspectorView: View {
                     minHeight: 90
                 )
                 .padding(.bottom, 20)
+
+                // Collections — chips with ×
+                ChipAssignSection(
+                    icon: "folder",
+                    title: "Collections",
+                    value: Binding(
+                        get: { asset.collectionName },
+                        set: { asset.collectionName = $0 }
+                    )
+                )
+                .padding(.bottom, 16)
+
+                // Project — chip with ×
+                ChipAssignSection(
+                    icon: "square.stack.3d.up",
+                    title: "Project",
+                    value: Binding(
+                        get: { asset.spaceName },
+                        set: { asset.spaceName = $0 }
+                    )
+                )
+                .padding(.bottom, 16)
+
+                // Tags
+                TagsSection(asset: asset)
+                    .padding(.bottom, 16)
 
                 // Date info
                 HStack {
@@ -231,11 +228,86 @@ struct InspectorView: View {
             }
         }
         .onChange(of: self.asset) { oldValue, newValue in
+            isNoteExpanded = false
             if let newValue = newValue {
                 loadDominantColors(for: newValue)
             } else {
                 dominantColors = []
                 colorHexes = []
+            }
+        }
+    }
+
+    // MARK: - Generate Variation (AI)
+
+    private var generateVariationButton: some View {
+        VStack(spacing: 6) {
+            Button {
+                withAnimation(.spring(response: 0.3)) {
+                    showVariationHint = true
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                    withAnimation { showVariationHint = false }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Text("✦")
+                        .font(.system(size: 12))
+                    Text("Generate variation")
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                .foregroundStyle(InspectorColors.primaryText.opacity(0.92))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 9)
+                .background(
+                    Capsule()
+                        .fill(Color.white.opacity(0.12))
+                        .overlay(Capsule().stroke(Color.white.opacity(0.16), lineWidth: 1))
+                )
+            }
+            .buttonStyle(.microAnimated)
+            .help("Generates a new image from the prompt and palette")
+
+            if showVariationHint {
+                Text("AI provider not connected yet")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(InspectorColors.tertiaryText)
+                    .transition(.opacity)
+            }
+        }
+    }
+
+    // MARK: - Note (collapsed by default)
+
+    @ViewBuilder
+    private func noteSection(for asset: AssetItem) -> some View {
+        if asset.notes.isEmpty && !isNoteExpanded {
+            Button {
+                withAnimation(.spring(response: 0.3)) {
+                    isNoteExpanded = true
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 9, weight: .bold))
+                    Text("Add a note")
+                        .font(.system(size: 12, weight: .medium))
+                }
+                .foregroundStyle(InspectorColors.secondaryText.opacity(0.7))
+            }
+            .buttonStyle(.plain)
+        } else {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Note")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(InspectorColors.secondaryText)
+                darkTextEditor(
+                    text: Binding(
+                        get: { asset.notes },
+                        set: { asset.notes = $0 }
+                    ),
+                    minHeight: 50
+                )
             }
         }
     }
@@ -247,7 +319,7 @@ struct InspectorView: View {
             ZStack(alignment: .topTrailing) {
                 if asset.assetType == .webLink {
                     webLinkThumbnail(for: asset)
-                } else if asset.assetType == .codeSnippet {
+                } else if asset.assetType == .codeSnippet || asset.assetType == .mcpServer || asset.assetType == .skill {
                     codeSnippetThumbnail(for: asset)
                 } else {
                     CachedImageView(relativePath: asset.relativeFilePath, maxSize: 500)
@@ -367,25 +439,6 @@ struct InspectorView: View {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(Color.white.opacity(0.15), lineWidth: 1)
             )
-    }
-
-    private func tagButton(label: String) -> some View {
-        Button { } label: {
-            Text(label)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(InspectorColors.secondaryText)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(InspectorColors.fieldBackground)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .stroke(InspectorColors.fieldBorder)
-                        )
-                )
-        }
-        .buttonStyle(.microAnimated)
     }
 
     // MARK: - Helpers
@@ -528,6 +581,283 @@ struct InspectorView: View {
                         .stroke(InspectorColors.fieldBorder)
                 )
         )
+    }
+}
+
+// MARK: - Chip Assign Section (Collections / Spaces)
+
+/// Renders a single-value assignment (collection or space) as a removable chip,
+/// with an inline "+ Add" field — visual match for GatherOS chips.
+struct ChipAssignSection: View {
+    let icon: String
+    let title: String
+    @Binding var value: String?
+
+    @State private var newText = ""
+    @State private var isAdding = false   // field visibility
+    @FocusState private var isFocused: Bool // keyboard focus (set after field exists)
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 5) {
+                Image(systemName: icon)
+                    .font(.system(size: 10, weight: .medium))
+                Text(title)
+                    .font(.system(size: 12, weight: .medium))
+            }
+            .foregroundStyle(InspectorColors.secondaryText)
+
+            FlowLayout(spacing: 6) {
+                if let value {
+                    HStack(spacing: 5) {
+                        Image(systemName: icon)
+                            .font(.system(size: 9, weight: .medium))
+                        Text(value)
+                            .font(.system(size: 11, weight: .medium))
+                        Button {
+                            self.value = nil
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundStyle(Color.white.opacity(0.5))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .foregroundStyle(Color.white.opacity(0.88))
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(
+                        Capsule()
+                            .fill(Color.white.opacity(0.12))
+                            .overlay(Capsule().stroke(Color.white.opacity(0.16), lineWidth: 1))
+                    )
+                } else {
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 8, weight: .bold))
+
+                        if isAdding {
+                            TextField("name", text: $newText)
+                                .textFieldStyle(.plain)
+                                .font(.system(size: 11))
+                                .foregroundStyle(Color.white)
+                                .frame(minWidth: 60, maxWidth: 110)
+                                .focused($isFocused)
+                                .onSubmit { commit() }
+                        } else {
+                            Text("Add")
+                                .font(.system(size: 11, weight: .medium))
+                        }
+                    }
+                    .foregroundStyle(Color.white.opacity(0.55))
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(
+                        Capsule()
+                            .fill(Color.white.opacity(0.06))
+                            .overlay(
+                                Capsule().stroke(
+                                    Color.white.opacity(0.2),
+                                    style: StrokeStyle(lineWidth: 1, dash: [3, 2])
+                                )
+                            )
+                    )
+                    .onTapGesture {
+                        isAdding = true
+                        // Focus once the field is in the hierarchy
+                        DispatchQueue.main.async { isFocused = true }
+                    }
+                }
+            }
+        }
+        .onChange(of: isFocused) { _, focused in
+            if !focused && isAdding { commit() }
+        }
+    }
+
+    private func commit() {
+        let name = newText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !name.isEmpty {
+            value = name
+        }
+        newText = ""
+        isAdding = false
+        isFocused = false
+    }
+}
+
+// MARK: - Tags Section
+
+struct TagsSection: View {
+    let asset: AssetItem
+
+    @State private var newTagText = ""
+    @FocusState private var isAddingTag: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 5) {
+                Image(systemName: "number")
+                    .font(.system(size: 10, weight: .medium))
+                Text("Tags")
+                    .font(.system(size: 12, weight: .medium))
+            }
+            .foregroundStyle(InspectorColors.secondaryText)
+
+            FlowLayout(spacing: 6) {
+                ForEach(asset.tags, id: \.self) { tag in
+                    HStack(spacing: 4) {
+                        Text(tag)
+                            .font(.system(size: 11, weight: .medium))
+                        Button {
+                            asset.tags.removeAll { $0 == tag }
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 8, weight: .bold))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .foregroundStyle(Color.white.opacity(0.85))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule()
+                            .fill(Color.white.opacity(0.12))
+                            .overlay(Capsule().stroke(Color.white.opacity(0.18), lineWidth: 1))
+                    )
+                }
+
+                // Inline add tag field
+                HStack(spacing: 4) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(Color.white.opacity(0.55))
+
+                    if isAddingTag {
+                        TextField("tag", text: $newTagText)
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 11))
+                            .foregroundStyle(Color.white)
+                            .frame(minWidth: 40, maxWidth: 80)
+                            .focused($isAddingTag)
+                            .onSubmit { commitTag() }
+                    } else {
+                        Text("Add")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(Color.white.opacity(0.55))
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(
+                    Capsule()
+                        .fill(Color.white.opacity(0.06))
+                        .overlay(
+                            Capsule().stroke(
+                                Color.white.opacity(0.2),
+                                style: StrokeStyle(lineWidth: 1, dash: [3, 2])
+                            )
+                        )
+                )
+                .onTapGesture {
+                    isAddingTag = true
+                }
+
+                // Auto-tag — derives tags from title & prompt words
+                Button {
+                    autoTag()
+                } label: {
+                    HStack(spacing: 4) {
+                        Text("✦")
+                            .font(.system(size: 9))
+                        Text("Auto-tag")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .foregroundStyle(Color.white.opacity(0.85))
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule()
+                            .fill(Color.white.opacity(0.12))
+                            .overlay(Capsule().stroke(Color.white.opacity(0.16), lineWidth: 1))
+                    )
+                }
+                .buttonStyle(.microAnimated)
+            }
+        }
+        .onChange(of: isAddingTag) { _, focused in
+            if !focused { commitTag() }
+        }
+    }
+
+    private func autoTag() {
+        let stopWords: Set<String> = ["the", "and", "with", "for", "from", "this", "that", "into", "are", "was", "has", "have", "modern", "image", "untitled", "copy"]
+        let source = "\(asset.title) \(asset.prompt)"
+        let words = source
+            .lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { $0.count > 3 && !stopWords.contains($0) && Int($0) == nil }
+
+        var added = 0
+        for word in words {
+            if !asset.tags.contains(word) {
+                asset.tags.append(word)
+                added += 1
+            }
+            if added >= 3 { break }
+        }
+    }
+
+    private func commitTag() {
+        let tag = newTagText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if !tag.isEmpty && !asset.tags.contains(tag) {
+            asset.tags.append(tag)
+        }
+        newTagText = ""
+        isAddingTag = false
+    }
+}
+
+// MARK: - Flow Layout (wrapping chips row)
+
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 6
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var rowHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x + size.width > maxWidth && x > 0 {
+                x = 0
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+        return CGSize(width: maxWidth, height: y + rowHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX
+        var y = bounds.minY
+        var rowHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x + size.width > bounds.maxX && x > bounds.minX {
+                x = bounds.minX
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            subview.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
     }
 }
 

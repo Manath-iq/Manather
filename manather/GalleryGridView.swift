@@ -9,16 +9,33 @@ import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
 
+enum SidebarCategory: String, CaseIterable, Identifiable {
+    case all = "All"
+    case unsorted = "Unsorted"
+    case trash = "Trash"
+    var id: String { rawValue }
+}
+
 enum MainTab: String, CaseIterable, Identifiable {
     case library = "Library"
     case collections = "Collections"
-    case spaces = "Spaces"
+    case spaces = "Projects" // data field is still `spaceName` — UI label only
+
+    var id: String { rawValue }
+}
+
+enum SortOrder: String, CaseIterable, Identifiable {
+    case mostRecent = "Most recent"
+    case oldestFirst = "Oldest first"
+    case nameAZ = "Name A-Z"
+    case nameZA = "Name Z-A"
 
     var id: String { rawValue }
 }
 
 struct GalleryGridView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.displayScale) private var displayScale
     let assets: [AssetItem]
     @Binding var selectedCategory: SidebarCategory
     @Binding var selectedAsset: AssetItem?
@@ -31,20 +48,38 @@ struct GalleryGridView: View {
     @State private var selectedTab: MainTab = .library
     @State private var activeCollectionFilter: String? = nil
     @State private var activeSpaceFilter: String? = nil
+    @State private var activeColorFilter: BaseColor? = nil
     @State private var showSettingsPopover = false
+    @State private var sortOrder: SortOrder = .mostRecent
+    @FocusState private var isSearchFocused: Bool
+    @State private var isSearchExpanded = false
+    @State private var assetToDelete: AssetItem? = nil
+    @State private var showDeleteConfirmation = false
 
     @State private var isDropTargeted = false
     @State private var showWebLinkSheet = false
     @State private var showCodeSnippetSheet = false
+    @State private var showMCPServerSheet = false
+    @State private var showSkillSheet = false
 
     private var isTrashView: Bool {
         selectedCategory == .trash
     }
 
+    // Computed once per render from the full asset list — passed into cards to avoid per-card @Query
+    private var allCollections: [String] {
+        Array(Set(assets.filter { !$0.isDeleted && !$0.isTrash }.compactMap { $0.collectionName })).sorted()
+    }
+    private var allSpaces: [String] {
+        Array(Set(assets.filter { !$0.isDeleted && !$0.isTrash }.compactMap { $0.spaceName })).sorted()
+    }
+
     private var categoryAssets: [AssetItem] {
         switch selectedCategory {
-        case .all, .unsorted:
+        case .all:
             return assets.filter { !$0.isTrash }
+        case .unsorted:
+            return assets.filter { !$0.isTrash && $0.collectionName == nil && $0.spaceName == nil }
         case .trash:
             return assets.filter { $0.isTrash }
         }
@@ -61,17 +96,37 @@ struct GalleryGridView: View {
             items = items.filter { $0.spaceName == spaceFilter }
         }
 
-        guard !searchText.isEmpty else {
-            return items.sorted { $0.dateAdded > $1.dateAdded }
+        if let colorFilter = activeColorFilter {
+            items = items.filter { asset in
+                guard let hexes = asset.dominantColorsHex, !hexes.isEmpty else { return false }
+                return ColorIndex.buckets(forHexes: hexes).contains(colorFilter)
+            }
         }
 
-        let query = searchText.lowercased()
-        return items.filter {
-            $0.title.lowercased().contains(query) ||
-            $0.prompt.lowercased().contains(query) ||
-            ($0.codeContent?.lowercased().contains(query) ?? false)
+        let filtered: [AssetItem]
+        if searchText.isEmpty {
+            filtered = items
+        } else {
+            let query = searchText.lowercased()
+            filtered = items.filter {
+                $0.title.lowercased().contains(query) ||
+                $0.prompt.lowercased().contains(query) ||
+                $0.notes.lowercased().contains(query) ||
+                ($0.codeContent?.lowercased().contains(query) ?? false) ||
+                $0.tags.contains { $0.lowercased().contains(query) }
+            }
         }
-        .sorted { $0.dateAdded > $1.dateAdded }
+        
+        switch sortOrder {
+        case .mostRecent:
+            return filtered.sorted { $0.dateAdded > $1.dateAdded }
+        case .oldestFirst:
+            return filtered.sorted { $0.dateAdded < $1.dateAdded }
+        case .nameAZ:
+            return filtered.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+        case .nameZA:
+            return filtered.sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedDescending }
+        }
     }
 
     /// Distributes items across columns for masonry layout (shortest column first)
@@ -106,18 +161,23 @@ struct GalleryGridView: View {
                 // Content
                 ZStack {
                     if selectedTab == .library {
-                        if filteredAssets.isEmpty {
-                            emptyStateView
-                        } else {
-                            VStack(spacing: 0) {
-                                filterBadgeBar
-                                masonryGrid
+                        Group {
+                            if filteredAssets.isEmpty {
+                                emptyStateView
+                            } else {
+                                VStack(spacing: 0) {
+                                    filterBadgeBar
+                                    masonryGrid
+                                }
                             }
                         }
+                        .transition(.opacity.combined(with: .offset(y: 10)))
                     } else if selectedTab == .collections {
                         collectionsGrid
+                            .transition(.opacity.combined(with: .offset(y: 10)))
                     } else {
                         spacesGrid
+                            .transition(.opacity.combined(with: .offset(y: 10)))
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -128,6 +188,15 @@ struct GalleryGridView: View {
                 addFAB
                     .padding(.trailing, 28)
                     .padding(.bottom, 28)
+            }
+
+            if selectedAsset != nil {
+                AssetDetailView(
+                    selectedAsset: $selectedAsset,
+                    assets: filteredAssets,
+                    animationNamespace: animationNamespace
+                )
+                .transition(.opacity)
             }
         }
         .focusEffectDisabled()
@@ -157,13 +226,77 @@ struct GalleryGridView: View {
         .sheet(isPresented: $showCodeSnippetSheet) {
             AddCodeSnippetSheet()
         }
+        .sheet(isPresented: $showMCPServerSheet) {
+            AddMCPServerSheet()
+        }
+        .sheet(isPresented: $showSkillSheet) {
+            AddSkillSheet()
+        }
         .onAppear {
-            for asset in assets {
-                if asset.assetType == .webLink && asset.relativeFilePath.isEmpty {
-                    WebsiteScreenshotManager.shared.generateScreenshot(for: asset, in: modelContext)
+            let pendingLinks = assets.filter { $0.assetType == .webLink && $0.relativeFilePath.isEmpty }
+            for asset in pendingLinks {
+                WebsiteScreenshotManager.shared.generateScreenshot(for: asset, in: modelContext)
+            }
+            // Backfill palette data so color filtering works for older imports
+            ColorIndexer.shared.backfill(assets: assets.filter { !$0.isTrash })
+        }
+        .confirmationDialog(
+            "Are you sure you want to permanently delete \"\(assetToDelete?.title ?? "")\"?",
+            isPresented: $showDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                if let asset = assetToDelete {
+                    deleteAssetPermanently(asset)
                 }
             }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This action cannot be undone and the file will be deleted from your disk.")
         }
+        .background(
+            Group {
+                Button("") {
+                    expandSearch()
+                }
+                .keyboardShortcut("f", modifiers: .command)
+                
+                Button("") {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                        selectedTab = .library
+                    }
+                }
+                .keyboardShortcut("1", modifiers: .command)
+                
+                Button("") {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                        selectedTab = .collections
+                    }
+                }
+                .keyboardShortcut("2", modifiers: .command)
+                
+                Button("") {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                        selectedTab = .spaces
+                    }
+                }
+                .keyboardShortcut("3", modifiers: .command)
+                
+                Button("") {
+                    if let asset = selectedAsset {
+                        if isTrashView {
+                            assetToDelete = asset
+                            showDeleteConfirmation = true
+                        } else {
+                            moveAssetToTrash(asset)
+                        }
+                    }
+                }
+                .keyboardShortcut(.delete, modifiers: .command)
+            }
+            .opacity(0)
+            .frame(width: 0, height: 0)
+        )
     }
 
     // MARK: - Top Bar
@@ -200,7 +333,7 @@ struct GalleryGridView: View {
     }
 
     private var brandMark: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 12) {
             Image("BrandIcon")
                 .resizable()
                 .aspectRatio(contentMode: .fit)
@@ -217,10 +350,74 @@ struct GalleryGridView: View {
                     .foregroundStyle(Color.primary.opacity(0.3))
             }
             
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(Color.primary.opacity(0.32))
-                .padding(.leading, 6)
+            // Collapsed search — icon only, expands on click (matches GatherOS)
+            if isSearchExpanded {
+                HStack(spacing: 6) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+
+                    TextField("Search...", text: $searchText)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12))
+                        .frame(width: 150)
+                        .focused($isSearchFocused)
+                        .onSubmit {
+                            if searchText.isEmpty { collapseSearch() }
+                        }
+                        .onKeyPress(.escape) {
+                            searchText = ""
+                            collapseSearch()
+                            return .handled
+                        }
+
+                    Button {
+                        searchText = ""
+                        collapseSearch()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.primary.opacity(0.06))
+                )
+                .transition(.scale(scale: 0.9, anchor: .leading).combined(with: .opacity))
+            } else {
+                Button {
+                    expandSearch()
+                } label: {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 26, height: 26)
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .help("Search (⌘F)")
+            }
+        }
+    }
+
+    private func expandSearch() {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            isSearchExpanded = true
+        }
+        // Focus after the field exists in the hierarchy
+        DispatchQueue.main.async {
+            isSearchFocused = true
+        }
+    }
+
+    private func collapseSearch() {
+        isSearchFocused = false
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            isSearchExpanded = false
         }
     }
 
@@ -285,7 +482,7 @@ struct GalleryGridView: View {
                 Image(systemName: "folder.fill")
                     .font(.system(size: 11, weight: .semibold))
             case .spaces:
-                Image(systemName: "square.grid.3x3.square")
+                Image(systemName: "square.stack.3d.up.fill")
                     .font(.system(size: 11, weight: .semibold))
             }
             Text(tab.rawValue)
@@ -419,6 +616,9 @@ struct GalleryGridView: View {
             Button { isImporting = true } label: { Label("Import files", systemImage: "doc.badge.plus") }
             Button { showWebLinkSheet = true } label: { Label("Add web link", systemImage: "link") }
             Button { showCodeSnippetSheet = true } label: { Label("Add code snippet", systemImage: "curlybraces") }
+            Divider()
+            Button { showSkillSheet = true } label: { Label("Add skill", systemImage: "sparkles.rectangle.stack") }
+            Button { showMCPServerSheet = true } label: { Label("Add MCP server", systemImage: "server.rack") }
         } label: {
             ZStack {
                 Circle()
@@ -467,24 +667,50 @@ struct GalleryGridView: View {
 
     private var filterBadgeBar: some View {
         Group {
-            if activeCollectionFilter != nil || activeSpaceFilter != nil {
+            if activeCollectionFilter != nil || activeSpaceFilter != nil || activeColorFilter != nil {
                 HStack(spacing: 8) {
                     Text("Filters:")
                         .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(isDarkMode ? Color.white.opacity(0.5) : Color.black.opacity(0.4))
-                    
+
                     if let col = activeCollectionFilter {
                         filterBadge(text: "Collection: \(col)") {
                             activeCollectionFilter = nil
                         }
                     }
-                    
+
                     if let sp = activeSpaceFilter {
-                        filterBadge(text: "Space: \(sp)") {
+                        filterBadge(text: "Project: \(sp)") {
                             activeSpaceFilter = nil
                         }
                     }
-                    
+
+                    if let colorF = activeColorFilter {
+                        HStack(spacing: 5) {
+                            Circle()
+                                .fill(colorF.swatch)
+                                .frame(width: 9, height: 9)
+                            Text(colorF.label)
+                                .font(.system(size: 11, weight: .medium))
+                            Button {
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                    activeColorFilter = nil
+                                }
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 10))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .foregroundStyle(isDarkMode ? Color.white : Color.primary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(
+                            Capsule()
+                                .fill(isDarkMode ? Color.white.opacity(0.12) : Color.black.opacity(0.05))
+                        )
+                    }
+
                     Spacer()
                 }
                 .padding(.horizontal, 24)
@@ -514,7 +740,7 @@ struct GalleryGridView: View {
     }
 
     private var collectionsGrid: some View {
-        let collections = Dictionary(grouping: assets.filter { !$0.isDeleted }) { $0.collectionName ?? "Unassigned" }
+        let collections = Dictionary(grouping: assets.filter { !$0.isDeleted && !$0.isTrash }) { $0.collectionName ?? "Unassigned" }
         let columns = [GridItem(.adaptive(minimum: 150, maximum: 200), spacing: 20)]
 
         return ScrollView {
@@ -537,7 +763,7 @@ struct GalleryGridView: View {
     }
 
     private var spacesGrid: some View {
-        let spaces = Dictionary(grouping: assets.filter { !$0.isDeleted }) { $0.spaceName ?? "Default Space" }
+        let spaces = Dictionary(grouping: assets.filter { !$0.isDeleted && !$0.isTrash }) { $0.spaceName ?? "Unassigned" }
         let columns = [GridItem(.adaptive(minimum: 150, maximum: 200), spacing: 20)]
 
         return ScrollView {
@@ -545,7 +771,7 @@ struct GalleryGridView: View {
                 ForEach(spaces.keys.sorted(), id: \.self) { name in
                     let items = spaces[name] ?? []
                     Button {
-                        activeSpaceFilter = name == "Default Space" ? nil : name
+                        activeSpaceFilter = name == "Unassigned" ? nil : name
                         withAnimation {
                             selectedTab = .library
                         }
@@ -553,6 +779,15 @@ struct GalleryGridView: View {
                         spaceCard(title: name, count: items.count, items: items)
                     }
                     .buttonStyle(.plain)
+                    .contextMenu {
+                        if name != "Unassigned" {
+                            Button {
+                                ContextPackExporter.export(projectName: name, assets: items)
+                            } label: {
+                                Label("Export Context Pack", systemImage: "shippingbox.and.arrow.backward")
+                            }
+                        }
+                    }
                 }
             }
             .padding(24)
@@ -579,7 +814,7 @@ struct GalleryGridView: View {
                             .rotationEffect(.degrees(-4))
                             .shadow(color: .black.opacity(0.15), radius: 6, x: -2, y: 3)
                     } else {
-                        Image(systemName: cover.assetType == .codeSnippet ? "curlybraces" : "globe")
+                        Image(systemName: cover.assetType.iconName)
                             .font(.system(size: 32))
                             .foregroundStyle(ManatherTheme.accent)
                             .frame(width: 80, height: 80)
@@ -637,7 +872,7 @@ struct GalleryGridView: View {
                                 .shadow(color: .black.opacity(0.12), radius: 4, x: 0, y: 2)
                                 .zIndex(Double(3 - index))
                         } else {
-                            Image(systemName: item.assetType == .codeSnippet ? "curlybraces" : "globe")
+                            Image(systemName: item.assetType.iconName)
                                 .font(.system(size: 16))
                                 .foregroundStyle(.white)
                                 .frame(width: 44, height: 44)
@@ -680,6 +915,8 @@ struct GalleryGridView: View {
 
     private var controlCluster: some View {
         HStack(spacing: 18) {
+            colorFilterRow
+
             Slider(value: Binding(
                 get: { columnCount },
                 set: { newValue in
@@ -696,14 +933,58 @@ struct GalleryGridView: View {
         }
     }
 
+    // MARK: - Color Filter Swatches
+
+    private var colorFilterRow: some View {
+        HStack(spacing: 7) {
+            ForEach(BaseColor.allCases) { base in
+                ColorFilterSwatch(
+                    base: base,
+                    isActive: activeColorFilter == base,
+                    isDimmed: activeColorFilter != nil && activeColorFilter != base
+                ) {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                        activeColorFilter = (activeColorFilter == base) ? nil : base
+                    }
+                }
+            }
+
+            if activeColorFilter != nil {
+                Button {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                        activeColorFilter = nil
+                    }
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .transition(.scale.combined(with: .opacity))
+                .help("Clear color filter")
+            }
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 30)
+        .background(
+            Capsule()
+                .fill(isDarkMode ? Color.white.opacity(0.06) : Color.white.opacity(0.55))
+                .overlay(
+                    Capsule().stroke(isDarkMode ? Color.white.opacity(0.08) : Color.black.opacity(0.06), lineWidth: 1)
+                )
+        )
+    }
+
     private var sortMenu: some View {
         Menu {
-            Button("Most recent") {}
-            Button("Oldest first") {}
-            Button("Name A-Z") {}
+            ForEach(SortOrder.allCases) { order in
+                Button(order.rawValue) {
+                    sortOrder = order
+                }
+            }
         } label: {
             HStack(spacing: 6) {
-                Text("Most recent")
+                Text(sortOrder.rawValue)
                     .font(.system(size: 13, weight: .medium))
                 Image(systemName: "chevron.down")
                     .font(.system(size: 9, weight: .bold))
@@ -732,7 +1013,7 @@ struct GalleryGridView: View {
             let colWidth = max(100, (geometry.size.width - CGFloat(columns.count - 1) * spacing - 40) / CGFloat(columns.count))
             
             // Calculate raw pixel size using screen scaling
-            let rawPixelSize = colWidth * (NSScreen.main?.backingScaleFactor ?? 2.0)
+            let rawPixelSize = colWidth * displayScale
             
             // Determine target maximum image size, quantized for caching efficiency
             let targetMaxSize: CGFloat = {
@@ -750,9 +1031,16 @@ struct GalleryGridView: View {
             }()
 
             ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                // Collection stack cards (only on "All", no filters/search)
+                if selectedCategory == .all && activeCollectionFilter == nil
+                    && activeSpaceFilter == nil && searchText.isEmpty && !allCollections.isEmpty {
+                    collectionStackRow
+                }
+
                 HStack(alignment: .top, spacing: spacing) {
                     ForEach(0..<columns.count, id: \.self) { colIndex in
-                        VStack(spacing: spacing) {
+                        LazyVStack(spacing: spacing) {
                             ForEach(columns[colIndex]) { asset in
                                 AssetCardView(
                                     asset: asset,
@@ -760,20 +1048,15 @@ struct GalleryGridView: View {
                                     isTrashView: isTrashView,
                                     animationNamespace: animationNamespace,
                                     maxImageSize: targetMaxSize,
+                                    availableCollections: allCollections,
+                                    availableSpaces: allSpaces,
                                     onSelect: {
                                         withAnimation(.spring(response: 0.42, dampingFraction: 0.8)) {
                                             selectedAsset = asset
                                         }
                                     },
                                     onTrash: {
-                                        if selectedAsset?.id == asset.id {
-                                            withAnimation(.spring(response: 0.35)) {
-                                                selectedAsset = nil
-                                            }
-                                        }
-                                        Task { @MainActor in
-                                            asset.isTrash = true
-                                        }
+                                        moveAssetToTrash(asset)
                                     },
                                     onRestore: {
                                         if selectedAsset?.id == asset.id {
@@ -786,40 +1069,97 @@ struct GalleryGridView: View {
                                         }
                                     },
                                     onDeletePermanently: {
-                                        let filePath = asset.relativeFilePath
-                                        let id = asset.id
-                                        
-                                        // Remove from selection if needed
-                                        if selectedAsset?.id == id {
-                                            withAnimation(.spring(response: 0.35)) {
-                                                selectedAsset = nil
-                                            }
-                                        }
-                                        
-                                        // Delete files in background to prevent UI freeze
-                                        Task.detached {
-                                            if !filePath.isEmpty {
-                                                FileManagerHelper.deleteFile(relativePath: filePath)
-                                                await ImageCache.shared.removeCachedImages(for: filePath)
-                                            }
-                                        }
-                                        
-                                        // Delete SwiftData model outside of animation transaction
-                                        Task { @MainActor in
-                                            modelContext.delete(asset)
-                                        }
+                                        assetToDelete = asset
+                                        showDeleteConfirmation = true
                                     }
                                 )
+                                .transition(.asymmetric(
+                                    insertion: .opacity.combined(with: .scale(scale: 0.94)),
+                                    removal: .opacity.combined(with: .scale(scale: 0.96))
+                                ))
                             }
                         }
                         .frame(maxWidth: .infinity)
                     }
+                }
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
                 .padding(.bottom, 80) // Extra bottom padding for FAB
             }
         }
+    }
+
+    // MARK: - Collection Stack Cards (library header row)
+
+    private var collectionStackRow: some View {
+        let grouped = Dictionary(grouping: assets.filter { !$0.isDeleted && !$0.isTrash && $0.collectionName != nil }) { $0.collectionName! }
+
+        return ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 14) {
+                ForEach(grouped.keys.sorted(), id: \.self) { name in
+                    let items = grouped[name] ?? []
+                    Button {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            activeCollectionFilter = name
+                        }
+                    } label: {
+                        collectionStackCard(name: name, items: items)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(2) // room for card shadows
+        }
+    }
+
+    private func collectionStackCard(name: String, items: [AssetItem]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            // Fanned preview stack
+            ZStack {
+                ForEach(Array(items.prefix(3).enumerated().reversed()), id: \.element.id) { index, item in
+                    Group {
+                        if !item.relativeFilePath.isEmpty, item.assetType != .codeSnippet {
+                            CachedImageView(relativePath: item.relativeFilePath, maxSize: 200)
+                                .frame(width: 96, height: 96)
+                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        } else {
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(isDarkMode ? Color.white.opacity(0.08) : Color.black.opacity(0.05))
+                                .frame(width: 96, height: 96)
+                                .overlay(
+                                    Image(systemName: item.assetType.iconName)
+                                        .font(.system(size: 22))
+                                        .foregroundStyle(.secondary)
+                                )
+                        }
+                    }
+                    .rotationEffect(.degrees(Double(index) * 5 - 4))
+                    .offset(x: CGFloat(index) * 5, y: CGFloat(index) * -2)
+                    .shadow(color: .black.opacity(0.10), radius: 4, y: 2)
+                }
+            }
+            .frame(width: 110, height: 104)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(name)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.primary)
+                    .lineLimit(1)
+                Text("\(items.count) \(items.count == 1 ? "save" : "saves")")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.secondary)
+            }
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(isDarkMode ? Color.white.opacity(0.05) : Color.white.opacity(0.75))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(isDarkMode ? Color.white.opacity(0.08) : Color.black.opacity(0.06), lineWidth: 1)
+                )
+        )
     }
 
     // MARK: - Empty State
@@ -840,6 +1180,24 @@ struct GalleryGridView: View {
                 Text("Try a different search term")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(ManatherTheme.mutedInk.opacity(0.70))
+            } else if let colorF = activeColorFilter {
+                Circle()
+                    .fill(colorF.swatch.opacity(0.8))
+                    .frame(width: 40, height: 40)
+                    .overlay(Circle().stroke(Color.white.opacity(0.4), lineWidth: 2))
+
+                Text("No \(colorF.label.lowercased()) assets")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(ManatherTheme.ink.opacity(0.72))
+
+                Button("Clear color filter") {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                        activeColorFilter = nil
+                    }
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(ManatherTheme.accent)
             } else if isTrashView {
                 Image(systemName: "trash")
                     .font(.system(size: 36, weight: .light))
@@ -951,19 +1309,95 @@ struct GalleryGridView: View {
             }
 
             await MainActor.run {
+                let asset = AssetItem(
+                    title: title,
+                    relativeFilePath: relativePath,
+                    imageWidth: finalDims?.width ?? 0,
+                    imageHeight: finalDims?.height ?? 0,
+                    typeRaw: type,
+                    codeLanguage: codeLanguage,
+                    codeContent: codeContent
+                )
                 withAnimation(.spring(response: 0.4)) {
-                    let asset = AssetItem(
-                        title: title,
-                        relativeFilePath: relativePath,
-                        imageWidth: finalDims?.width ?? 0,
-                        imageHeight: finalDims?.height ?? 0,
-                        typeRaw: type,
-                        codeLanguage: codeLanguage,
-                        codeContent: codeContent
-                    )
                     modelContext.insert(asset)
                 }
+                // Index palette right away so color filters pick it up
+                ColorIndexer.shared.ensureColors(for: asset)
             }
         }
+    }
+
+    private func moveAssetToTrash(_ asset: AssetItem) {
+        if selectedAsset?.id == asset.id {
+            withAnimation(.spring(response: 0.35)) {
+                selectedAsset = nil
+            }
+        }
+        Task { @MainActor in
+            asset.isTrash = true
+        }
+    }
+
+    private func deleteAssetPermanently(_ asset: AssetItem) {
+        let filePath = asset.relativeFilePath
+        let id = asset.id
+
+        // Mark soft-deleted immediately so the card disappears while animation plays
+        asset.isDeleted = true
+
+        if selectedAsset?.id == id {
+            withAnimation(.spring(response: 0.35)) {
+                selectedAsset = nil
+            }
+        }
+
+        Task.detached {
+            if !filePath.isEmpty {
+                FileManagerHelper.deleteFile(relativePath: filePath)
+                ImageCache.shared.removeCachedImages(for: filePath)
+            }
+        }
+
+        // Remove from SwiftData after a brief delay so any outgoing animations finish
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            modelContext.delete(asset)
+        }
+    }
+}
+
+// MARK: - Color Filter Swatch
+
+struct ColorFilterSwatch: View {
+    let base: BaseColor
+    let isActive: Bool
+    let isDimmed: Bool
+    let action: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            Circle()
+                .fill(base.swatch)
+                .frame(width: 14, height: 14)
+                .overlay(
+                    Circle()
+                        .stroke(Color.white.opacity(isActive ? 0.9 : 0.25), lineWidth: isActive ? 2 : 1)
+                )
+                .overlay(
+                    // Selection ring outside the swatch
+                    Circle()
+                        .stroke(base.swatch.opacity(isActive ? 0.5 : 0), lineWidth: 2)
+                        .padding(-3)
+                )
+                .scaleEffect(isHovered || isActive ? 1.25 : 1.0)
+                .opacity(isDimmed ? 0.35 : 1.0)
+                .animation(.spring(response: 0.25, dampingFraction: 0.6), value: isHovered)
+                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isActive)
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+        .help(base.label)
     }
 }

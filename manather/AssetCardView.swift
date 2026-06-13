@@ -7,12 +7,19 @@
 
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
+
 struct AssetCardView: View {
+    @Environment(\.modelContext) private var modelContext
+
     let asset: AssetItem
     let isSelected: Bool
     let isTrashView: Bool
     let animationNamespace: Namespace.ID
     var maxImageSize: CGFloat = 500
+    /// Passed in from parent — avoids a @Query per card (huge perf win)
+    let availableCollections: [String]
+    let availableSpaces: [String]
     let onSelect: () -> Void
     let onTrash: () -> Void
     let onRestore: () -> Void
@@ -115,11 +122,123 @@ struct AssetCardView: View {
                 
             case .webLink:
                 webLinkCard
-                
+
             case .codeSnippet:
                 codeSnippetCard
+
+            case .mcpServer:
+                mcpServerCard
+
+            case .skill:
+                skillCard
             }
         }
+    }
+
+    // MARK: - MCP Server Card
+
+    private var mcpServerCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "server.rack")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(ManatherTheme.accent)
+                Text("MCP SERVER")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.45))
+                    .tracking(0.8)
+                Spacer()
+                Circle()
+                    .fill(Color.green.opacity(0.8))
+                    .frame(width: 6, height: 6)
+            }
+
+            Text(asset.title)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+
+            if let command = asset.codeLanguage, !command.isEmpty {
+                Text(command)
+                    .font(.system(size: 9, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.55))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                    .padding(6)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                            .fill(Color.black.opacity(0.35))
+                    )
+            }
+
+            if !asset.notes.isEmpty {
+                Text(asset.notes)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.white.opacity(0.5))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .frame(height: 110)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color(red: 0.10, green: 0.12, blue: 0.15),
+                    Color(red: 0.07, green: 0.08, blue: 0.10)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+    }
+
+    // MARK: - Skill Card
+
+    private var skillCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "sparkles.rectangle.stack")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Color(red: 0.85, green: 0.65, blue: 0.30))
+                Text("SKILL")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.45))
+                    .tracking(0.8)
+                Spacer()
+            }
+
+            Text(asset.title)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+
+            Text(asset.codeContent ?? "")
+                .font(.system(size: 9, design: .monospaced))
+                .foregroundStyle(.white.opacity(0.55))
+                .lineLimit(4)
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .frame(height: 110)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color(red: 0.13, green: 0.11, blue: 0.08),
+                    Color(red: 0.09, green: 0.08, blue: 0.06)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
     }
 
     // MARK: - Specialized Bookmark Card
@@ -245,6 +364,66 @@ struct AssetCardView: View {
 
     // MARK: - Context Menu
 
+    private var collectionsList: [String] { availableCollections }
+    private var spacesList: [String] { availableSpaces }
+
+    private func copyPrompt() {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(asset.prompt, forType: .string)
+    }
+
+    private func duplicateAsset() {
+        var newPath = asset.relativeFilePath
+        if !asset.relativeFilePath.isEmpty {
+            let srcURL = FileManagerHelper.absolutePath(for: asset.relativeFilePath)
+            let ext = srcURL.pathExtension
+            let newFilename = "copy_\(UUID().uuidString).\(ext)"
+            let destURL = FileManagerHelper.assetsDirectory.appendingPathComponent(newFilename)
+            try? FileManager.default.copyItem(at: srcURL, to: destURL)
+            newPath = newFilename
+        }
+        
+        let copy = AssetItem(
+            title: "\(asset.title) (Copy)",
+            relativeFilePath: newPath,
+            sourceURL: asset.sourceURL,
+            prompt: asset.prompt,
+            notes: asset.notes,
+            imageWidth: asset.imageWidth,
+            imageHeight: asset.imageHeight,
+            typeRaw: asset.typeRaw,
+            codeLanguage: asset.codeLanguage,
+            codeContent: asset.codeContent,
+            dominantColorsHex: asset.dominantColorsHex,
+            collectionName: asset.collectionName,
+            spaceName: asset.spaceName
+        )
+        modelContext.insert(copy)
+    }
+
+    private func exportAsset() {
+        guard !asset.relativeFilePath.isEmpty else { return }
+        
+        let savePanel = NSSavePanel()
+        let ext = (asset.relativeFilePath as NSString).pathExtension
+        if let type = UTType(filenameExtension: ext) {
+            savePanel.allowedContentTypes = [type]
+        } else {
+            savePanel.allowedContentTypes = [.image]
+        }
+        savePanel.canCreateDirectories = true
+        savePanel.nameFieldStringValue = asset.title
+        
+        savePanel.begin { response in
+            if response == .OK, let destinationURL = savePanel.url {
+                let sourceURL = FileManagerHelper.absolutePath(for: asset.relativeFilePath)
+                try? FileManager.default.removeItem(at: destinationURL)
+                try? FileManager.default.copyItem(at: sourceURL, to: destinationURL)
+            }
+        }
+    }
+
     @ViewBuilder
     private var contextMenuItems: some View {
         if isTrashView {
@@ -262,6 +441,62 @@ struct AssetCardView: View {
                 Label("Delete Permanently", systemImage: "trash.slash")
             }
         } else {
+            if !asset.prompt.isEmpty {
+                Button {
+                    copyPrompt()
+                } label: {
+                    Label("Copy Prompt", systemImage: "doc.on.doc")
+                }
+                
+                Divider()
+            }
+            
+            Menu {
+                ForEach(collectionsList, id: \.self) { col in
+                    Button(col) {
+                        asset.collectionName = col
+                    }
+                }
+                Divider()
+                Button("Clear Collection") {
+                    asset.collectionName = nil
+                }
+            } label: {
+                Label("Add to Collection", systemImage: "folder")
+            }
+            
+            Menu {
+                ForEach(spacesList, id: \.self) { space in
+                    Button(space) {
+                        asset.spaceName = space
+                    }
+                }
+                Divider()
+                Button("Remove from Project") {
+                    asset.spaceName = nil
+                }
+            } label: {
+                Label("Add to Project", systemImage: "square.stack.3d.up")
+            }
+            
+            Divider()
+            
+            Button {
+                duplicateAsset()
+            } label: {
+                Label("Duplicate", systemImage: "plus.square.on.square")
+            }
+            
+            if !asset.relativeFilePath.isEmpty {
+                Button {
+                    exportAsset()
+                } label: {
+                    Label("Export...", systemImage: "square.and.arrow.up")
+                }
+            }
+            
+            Divider()
+
             Button(role: .destructive) {
                 onTrash()
             } label: {

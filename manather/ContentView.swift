@@ -47,9 +47,10 @@ enum ManatherTheme {
     )
     static let accent = Color(red: 0.14, green: 0.54, blue: 0.52)
 
-    static let viewerBackground = Color(red: 0.055, green: 0.11, blue: 0.13)
-    static let viewerPanel = Color(red: 0.08, green: 0.14, blue: 0.16)
-    static let viewerField = Color(red: 0.12, green: 0.16, blue: 0.16).opacity(0.72)
+    // Neutral charcoal — matches GatherOS inspector (no teal/blue tint)
+    static let viewerBackground = Color(red: 0.075, green: 0.08, blue: 0.09)
+    static let viewerPanel = Color(red: 0.11, green: 0.115, blue: 0.125)
+    static let viewerField = Color(red: 0.16, green: 0.165, blue: 0.175).opacity(0.72)
     static let viewerBorder = Color.white.opacity(0.10)
 
     static func glassStroke(_ tint: Color = .black, opacity: Double = 0.08) -> Color {
@@ -187,19 +188,9 @@ struct ContentView: View {
     @State private var columnCount: Double = 4
     @State private var isImporting: Bool = false
 
-    private var categoryAssets: [AssetItem] {
-        let validAssets = allAssets.filter { !$0.isDeleted }
-        switch selectedCategory {
-        case .all, .unsorted:
-            return validAssets.filter { !$0.isTrash }
-        case .trash:
-            return validAssets.filter { $0.isTrash }
-        }
-    }
-
     var body: some View {
         ZStack {
-            LibraryAmbientBackground(featuredAsset: categoryAssets.first)
+            LibraryAmbientBackground(featuredAsset: allAssets.first { !$0.isDeleted && !$0.isTrash })
 
             GalleryGridView(
                 assets: allAssets.filter { !$0.isDeleted },
@@ -210,16 +201,6 @@ struct ContentView: View {
                 isImporting: $isImporting,
                 animationNamespace: galleryNamespace
             )
-            
-            if selectedAsset != nil {
-                // Detail/Viewer mode — image + inspector overlayed on top
-                AssetDetailView(
-                    selectedAsset: $selectedAsset,
-                    assets: categoryAssets,
-                    animationNamespace: galleryNamespace
-                )
-                .transition(.opacity)
-            }
         }
         .focusEffectDisabled()
         .animation(.spring(response: 0.45, dampingFraction: 0.82), value: selectedAsset != nil)

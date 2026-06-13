@@ -35,6 +35,7 @@ struct AssetDetailView: View {
     @State private var isLoading = false
     @State private var showInspector = true
     @State private var loadTask: Task<Void, Never>?
+    @State private var videoPlayer: AVPlayer?
 
     private var currentIndex: Int {
         guard let asset = selectedAsset else { return 0 }
@@ -116,7 +117,14 @@ struct AssetDetailView: View {
         .onAppear {
             loadImage()
         }
+        .onDisappear {
+            loadTask?.cancel()
+            videoPlayer?.pause()
+            videoPlayer = nil
+        }
         .onChange(of: selectedAsset) { _, _ in
+            videoPlayer?.pause()
+            videoPlayer = nil
             loadImage()
         }
         .onKeyPress(.leftArrow) {
@@ -151,7 +159,7 @@ struct AssetDetailView: View {
                         case .image:
                             if let nsImage = loadedImage {
                                 GeometryReader { geometry in
-                                    let dragGesture = DragGesture(minimumDistance: 0)
+                                    let dragGesture = DragGesture(minimumDistance: 3)
                                         .onChanged { value in
                                             guard zoomScale > 1.0 else { return }
                                             offset = CGSize(
@@ -209,7 +217,7 @@ struct AssetDetailView: View {
 
                         case .gif:
                             GeometryReader { geometry in
-                                let dragGesture = DragGesture(minimumDistance: 0)
+                                let dragGesture = DragGesture(minimumDistance: 3)
                                     .onChanged { value in
                                         guard zoomScale > 1.0 else { return }
                                         offset = CGSize(
@@ -264,11 +272,13 @@ struct AssetDetailView: View {
                             .clipped()
 
                         case .video:
-                            VideoPlayer(player: AVPlayer(url: fileURL))
-                                .matchedGeometryEffect(id: asset.id, in: animationNamespace)
-                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                                .padding(40)
-                                .id(asset.id) // Force recreation to avoid stale player
+                            if let videoPlayer {
+                                VideoPlayer(player: videoPlayer)
+                                    .matchedGeometryEffect(id: asset.id, in: animationNamespace)
+                                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                    .padding(40)
+                                    .id(asset.id)
+                            }
 
                         case .webLink:
                             if let url = URL(string: asset.sourceURL) {
@@ -284,57 +294,8 @@ struct AssetDetailView: View {
                                     .padding(40)
                             }
 
-                        case .codeSnippet:
-                            VStack(alignment: .leading, spacing: 0) {
-                                // Header
-                                HStack {
-                                    Text(asset.codeLanguage ?? "Swift")
-                                        .font(.system(size: 11, weight: .bold, design: .monospaced))
-                                        .foregroundStyle(.white.opacity(0.5))
-
-                                    Spacer()
-
-                                    Button {
-                                        let pasteboard = NSPasteboard.general
-                                        pasteboard.clearContents()
-                                        pasteboard.setString(asset.codeContent ?? "", forType: .string)
-                                    } label: {
-                                        Label("Copy Code", systemImage: "doc.on.doc")
-                                            .font(.system(size: 11, weight: .medium))
-                                            .foregroundStyle(.white)
-                                    }
-                                    .buttonStyle(.microAnimated)
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 4)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 5, style: .continuous)
-                                            .fill(Color.white.opacity(0.1))
-                                    )
-                                }
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 10)
-                                .background(Color.white.opacity(0.04))
-
-                                Divider()
-                                    .background(Color.white.opacity(0.08))
-
-                                // Scrollable Code View
-                                ScrollView {
-                                    Text(asset.codeContent ?? "")
-                                        .font(.system(size: 12, design: .monospaced))
-                                        .foregroundStyle(.white.opacity(0.9))
-                                        .padding(16)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                }
-                            }
-                            .matchedGeometryEffect(id: asset.id, in: animationNamespace)
-                            .background(Color(red: 0.08, green: 0.10, blue: 0.12))
-                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                            )
-                            .padding(40)
+                        case .codeSnippet, .mcpServer, .skill:
+                            textContentViewer(for: asset)
                         }
                     }
 
@@ -352,6 +313,89 @@ struct AssetDetailView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: - Text Content Viewer (code / MCP / skill)
+
+    private func textContentViewer(for asset: AssetItem) -> some View {
+        let headerLabel: String = {
+            switch asset.assetType {
+            case .mcpServer: return asset.codeLanguage?.isEmpty == false ? asset.codeLanguage! : "MCP Server"
+            case .skill: return "Skill · Markdown"
+            default: return asset.codeLanguage ?? "Code"
+            }
+        }()
+
+        let body: String = {
+            if asset.assetType == .mcpServer {
+                var parts: [String] = []
+                if let cmd = asset.codeLanguage, !cmd.isEmpty { parts.append("# Launch command\n\(cmd)") }
+                if let cfg = asset.codeContent, !cfg.isEmpty { parts.append("# Config\n\(cfg)") }
+                return parts.joined(separator: "\n\n")
+            }
+            return asset.codeContent ?? ""
+        }()
+
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                if asset.assetType == .mcpServer {
+                    Image(systemName: "server.rack")
+                        .font(.system(size: 11))
+                        .foregroundStyle(ManatherTheme.accent)
+                } else if asset.assetType == .skill {
+                    Image(systemName: "sparkles.rectangle.stack")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Color(red: 0.85, green: 0.65, blue: 0.30))
+                }
+
+                Text(headerLabel)
+                    .font(.system(size: 11, weight: .bold, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.5))
+                    .lineLimit(1)
+
+                Spacer()
+
+                Button {
+                    let pasteboard = NSPasteboard.general
+                    pasteboard.clearContents()
+                    pasteboard.setString(body, forType: .string)
+                } label: {
+                    Label("Copy", systemImage: "doc.on.doc")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(.microAnimated)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .fill(Color.white.opacity(0.1))
+                )
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(Color.white.opacity(0.04))
+
+            Divider()
+                .background(Color.white.opacity(0.08))
+
+            ScrollView {
+                Text(body)
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .padding(16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .textSelection(.enabled)
+            }
+        }
+        .matchedGeometryEffect(id: asset.id, in: animationNamespace)
+        .background(Color(red: 0.09, green: 0.10, blue: 0.11))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        )
+        .padding(40)
     }
 
     // MARK: - Top Bar (Inline macOS Header)
@@ -504,7 +548,15 @@ struct AssetDetailView: View {
         }
         .padding(.horizontal, 16)
         .frame(height: 52)
-        .background(Color.clear)
+        .background(
+            // Scrim keeps white toolbar icons readable over light images
+            LinearGradient(
+                colors: [Color.black.opacity(0.45), Color.black.opacity(0.0)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .allowsHitTesting(false)
+        )
     }
 
     // MARK: - Floating Bottom Navigation Pill
@@ -595,16 +647,18 @@ struct AssetDetailView: View {
     }
 
     private func navigatePrevious() {
-        guard canGoBack else { return }
+        let idx = currentIndex
+        guard idx > 0, idx - 1 < assets.count else { return }
         withAnimation(.easeInOut(duration: 0.2)) {
-            selectedAsset = assets[currentIndex - 1]
+            selectedAsset = assets[idx - 1]
         }
     }
 
     private func navigateNext() {
-        guard canGoForward else { return }
+        let idx = currentIndex
+        guard idx >= 0, idx + 1 < assets.count else { return }
         withAnimation(.easeInOut(duration: 0.2)) {
-            selectedAsset = assets[currentIndex + 1]
+            selectedAsset = assets[idx + 1]
         }
     }
 
@@ -619,6 +673,12 @@ struct AssetDetailView: View {
         
         // Cancel previous load
         loadTask?.cancel()
+        
+        // Set up video player if needed
+        if asset.assetType == .video, !asset.relativeFilePath.isEmpty {
+            let fileURL = FileManagerHelper.absolutePath(for: asset.relativeFilePath)
+            videoPlayer = AVPlayer(url: fileURL)
+        }
         
         // For non-local files, loadedImage is nil
         if asset.relativeFilePath.isEmpty {
@@ -671,6 +731,7 @@ struct AssetDetailView: View {
             if self.selectedAsset?.id == assetID {
                 withAnimation(.easeInOut(duration: 0.25)) {
                     self.loadedImage = img
+                    self.blurImage = nil
                     self.isLoading = false
                 }
             }

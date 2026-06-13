@@ -98,7 +98,7 @@ struct AddWebLinkSheet: View {
         .padding(20)
         .frame(width: 360, height: errorMessage.isEmpty ? 190 : 214)
         .background(
-            VisualEffectView(material: .hudWindow, blendingMode: .withinWindow)
+            VisualEffectView(material: .hudWindow, blendingMode: .withinWindow, forceDark: true)
         )
     }
 
@@ -116,29 +116,29 @@ struct AddWebLinkSheet: View {
         }
 
         errorMessage = ""
-        let tempTitle = url.host ?? "Web Link"
         isFetching = true
 
-        URLSession.shared.dataTask(with: url) { data, response, error in
-            var pageTitle = tempTitle
-
-            if let data = data,
-               let html = String(data: data, encoding: .utf8) {
-                // Simple regex to extract <title> tag contents
-                if let range = html.range(of: "<title>([^<]+)</title>", options: [.regularExpression, .caseInsensitive]) {
+        Task {
+            var pageTitle = url.host ?? "Web Link"
+            
+            do {
+                let (data, _) = try await URLSession.shared.data(from: url)
+                if let html = String(data: data, encoding: .utf8),
+                   let range = html.range(of: "<title>([^<]+)</title>", options: [.regularExpression, .caseInsensitive]) {
                     let rawTag = html[range]
                     let cleanTitle = rawTag
                         .replacingOccurrences(of: "<title>", with: "", options: .caseInsensitive)
                         .replacingOccurrences(of: "</title>", with: "", options: .caseInsensitive)
                         .trimmingCharacters(in: .whitespacesAndNewlines)
-                    
                     if !cleanTitle.isEmpty {
                         pageTitle = cleanTitle
                     }
                 }
+            } catch {
+                // Use host as fallback title
             }
 
-            DispatchQueue.main.async {
+            await MainActor.run {
                 let asset = AssetItem(
                     title: pageTitle,
                     relativeFilePath: "",
@@ -148,10 +148,8 @@ struct AddWebLinkSheet: View {
                 modelContext.insert(asset)
                 isFetching = false
                 dismiss()
-                
-                // Generate website preview screenshot
                 WebsiteScreenshotManager.shared.generateScreenshot(for: asset, in: modelContext)
             }
-        }.resume()
+        }
     }
 }

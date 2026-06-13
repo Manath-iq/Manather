@@ -15,6 +15,7 @@ struct AddCodeSnippetSheet: View {
     @State private var title = ""
     @State private var selectedLanguage = "Swift"
     @State private var codeText = ""
+    @FocusState private var isEditorFocused: Bool
 
     let languages = ["Swift", "JavaScript", "TypeScript", "Python", "HTML", "CSS", "C++", "Rust", "Go", "JSON", "Markdown"]
 
@@ -79,6 +80,7 @@ struct AddCodeSnippetSheet: View {
                     .font(.system(.body, design: .monospaced))
                     .foregroundStyle(.white)
                     .scrollContentBackground(.hidden)
+                    .focused($isEditorFocused)
                     .padding(8)
                     .frame(height: 180)
                     .background(
@@ -89,6 +91,8 @@ struct AddCodeSnippetSheet: View {
                                     .stroke(ManatherTheme.viewerBorder, lineWidth: 1)
                             )
                     )
+                    .contentShape(Rectangle())
+                    .onTapGesture { isEditorFocused = true }
             }
 
             // Action buttons
@@ -127,7 +131,7 @@ struct AddCodeSnippetSheet: View {
         .padding(20)
         .frame(width: 440, height: 440)
         .background(
-            VisualEffectView(material: .hudWindow, blendingMode: .withinWindow)
+            VisualEffectView(material: .hudWindow, blendingMode: .withinWindow, forceDark: true)
         )
     }
 

@@ -15,7 +15,9 @@ struct WebView: NSViewRepresentable {
         let webConfiguration = WKWebViewConfiguration()
         let webView = WKWebView(frame: .zero, configuration: webConfiguration)
         // Allow transparent background if needed
-        webView.setValue(false, forKey: "drawsBackground")
+        if webView.responds(to: Selector(("setDrawsBackground:"))) {
+            webView.setValue(false, forKey: "drawsBackground")
+        }
         webView.load(URLRequest(url: url))
         return webView
     }
