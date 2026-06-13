@@ -193,10 +193,10 @@ struct GalleryGridView: View {
             if selectedAsset != nil {
                 AssetDetailView(
                     selectedAsset: $selectedAsset,
-                    assets: filteredAssets,
-                    animationNamespace: animationNamespace
+                    assets: filteredAssets
                 )
-                .transition(.opacity)
+                // Smooth zoom-in/out instead of a flat fade.
+                .transition(.scale(scale: 0.93).combined(with: .opacity))
             }
         }
         .focusEffectDisabled()
@@ -433,17 +433,9 @@ struct GalleryGridView: View {
                         return isDarkMode ? Color.white.opacity(0.8) : Color.black.opacity(0.7)
                     }
                 }()
-                
-                let bgColor: Color = {
-                    if isSelected {
-                        return isDarkMode ? Color.white : Color.black
-                    } else {
-                        return Color.clear
-                    }
-                }()
-                
+
                 Button {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    withAnimation(ManatherTheme.uiMotion) {
                         selectedTab = tab
                     }
                 } label: {
@@ -452,8 +444,15 @@ struct GalleryGridView: View {
                         .padding(.horizontal, 16)
                         .padding(.vertical, 8)
                         .background(
-                            Capsule()
-                                .fill(bgColor)
+                            // The active capsule is a single shared shape that
+                            // slides between tabs instead of popping in place.
+                            ZStack {
+                                if isSelected {
+                                    Capsule()
+                                        .fill(isDarkMode ? Color.white : Color.black)
+                                        .matchedGeometryEffect(id: "activeTabCapsule", in: animationNamespace)
+                                }
+                            }
                         )
                 }
                 .buttonStyle(.plain)
@@ -1046,23 +1045,20 @@ struct GalleryGridView: View {
                                     asset: asset,
                                     isSelected: selectedAsset?.id == asset.id,
                                     isTrashView: isTrashView,
-                                    animationNamespace: animationNamespace,
                                     maxImageSize: targetMaxSize,
                                     availableCollections: allCollections,
                                     availableSpaces: allSpaces,
                                     onSelect: {
-                                        withAnimation(.spring(response: 0.42, dampingFraction: 0.8)) {
-                                            selectedAsset = asset
-                                        }
+                                        // Animation is driven once by ContentView's
+                                        // .animation(value: selectedAsset != nil).
+                                        selectedAsset = asset
                                     },
                                     onTrash: {
                                         moveAssetToTrash(asset)
                                     },
                                     onRestore: {
                                         if selectedAsset?.id == asset.id {
-                                            withAnimation(.spring(response: 0.35)) {
-                                                selectedAsset = nil
-                                            }
+                                            selectedAsset = nil
                                         }
                                         Task { @MainActor in
                                             asset.isTrash = false

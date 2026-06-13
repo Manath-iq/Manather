@@ -20,7 +20,6 @@ private enum ViewerColors {
 struct AssetDetailView: View {
     @Binding var selectedAsset: AssetItem?
     let assets: [AssetItem]
-    let animationNamespace: Namespace.ID
 
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage("isDarkMode") private var isDarkMode = false
@@ -192,7 +191,6 @@ struct AssetDetailView: View {
                                         Image(nsImage: nsImage)
                                             .resizable()
                                             .aspectRatio(contentMode: .fit)
-                                            .matchedGeometryEffect(id: asset.id, in: animationNamespace)
                                             .id(asset.id)
                                             .scaleEffect(zoomScale)
                                             .offset(offset)
@@ -249,7 +247,6 @@ struct AssetDetailView: View {
 
                                 ZStack {
                                     AnimatedGifView(url: fileURL)
-                                        .matchedGeometryEffect(id: asset.id, in: animationNamespace)
                                         .id(asset.id)
                                         .scaleEffect(zoomScale)
                                         .offset(offset)
@@ -274,7 +271,6 @@ struct AssetDetailView: View {
                         case .video:
                             if let videoPlayer {
                                 VideoPlayer(player: videoPlayer)
-                                    .matchedGeometryEffect(id: asset.id, in: animationNamespace)
                                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                                     .padding(40)
                                     .id(asset.id)
@@ -283,7 +279,6 @@ struct AssetDetailView: View {
                         case .webLink:
                             if let url = URL(string: asset.sourceURL) {
                                 WebView(url: url)
-                                    .matchedGeometryEffect(id: asset.id, in: animationNamespace)
                                     .id(asset.id)
                                     .background(colorScheme == .dark ? Color.black : Color.white)
                                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -388,7 +383,6 @@ struct AssetDetailView: View {
                     .textSelection(.enabled)
             }
         }
-        .matchedGeometryEffect(id: asset.id, in: animationNamespace)
         .background(Color(red: 0.09, green: 0.10, blue: 0.11))
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay(
@@ -409,9 +403,7 @@ struct AssetDetailView: View {
             // Back button + counter
             HStack(spacing: 12) {
                 Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        selectedAsset = nil
-                    }
+                    selectedAsset = nil
                 } label: {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 11, weight: .bold))
@@ -498,9 +490,7 @@ struct AssetDetailView: View {
                 
                 actionButton(icon: "trash", tooltip: "Delete") {
                     if let asset = selectedAsset {
-                        withAnimation {
-                            selectedAsset = nil
-                        }
+                        selectedAsset = nil
                         Task { @MainActor in
                             asset.isTrash = true
                         }
@@ -531,9 +521,7 @@ struct AssetDetailView: View {
 
             // Close button
             Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    selectedAsset = nil
-                }
+                selectedAsset = nil
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 11, weight: .bold))

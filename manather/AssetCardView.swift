@@ -15,7 +15,6 @@ struct AssetCardView: View {
     let asset: AssetItem
     let isSelected: Bool
     let isTrashView: Bool
-    let animationNamespace: Namespace.ID
     var maxImageSize: CGFloat = 500
     /// Passed in from parent — avoids a @Query per card (huge perf win)
     let availableCollections: [String]
@@ -44,7 +43,6 @@ struct AssetCardView: View {
         let cardBackground = isDarkMode ? Color.white.opacity(0.04) : Color.white.opacity(0.4)
         
         return imageContent
-            .matchedGeometryEffect(id: asset.id, in: animationNamespace)
             .frame(maxWidth: .infinity)
             .background(cardBackground)
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))

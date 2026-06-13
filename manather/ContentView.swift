@@ -47,6 +47,13 @@ enum ManatherTheme {
     )
     static let accent = Color(red: 0.14, green: 0.54, blue: 0.52)
 
+    // MARK: - Motion
+    // Shared animation curves so every transition in the app feels the same.
+    /// For large overlays opening / closing (the full-screen viewer).
+    static let overlayMotion = Animation.spring(response: 0.42, dampingFraction: 0.82)
+    /// For small UI state changes (tabs, toggles, filters, search field).
+    static let uiMotion = Animation.spring(response: 0.32, dampingFraction: 0.82)
+
     // Neutral charcoal — matches GatherOS inspector (no teal/blue tint)
     static let viewerBackground = Color(red: 0.075, green: 0.08, blue: 0.09)
     static let viewerPanel = Color(red: 0.11, green: 0.115, blue: 0.125)
@@ -203,7 +210,9 @@ struct ContentView: View {
             )
         }
         .focusEffectDisabled()
-        .animation(.spring(response: 0.45, dampingFraction: 0.82), value: selectedAsset != nil)
+        // Single source of truth for the viewer open/close animation —
+        // every place that sets selectedAsset gets the same smooth motion.
+        .animation(ManatherTheme.overlayMotion, value: selectedAsset != nil)
         .preferredColorScheme(isDarkMode ? .dark : .light)
         .onChange(of: selectedCategory) { _, _ in
             selectedAsset = nil
