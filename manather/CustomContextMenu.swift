@@ -88,7 +88,10 @@ struct AssetContextMenuView: View {
     let projects: [String]
     let isTrash: Bool
 
+    let onOpen: () -> Void
     let onCopyPrompt: () -> Void
+    let onCopyImage: (() -> Void)?
+    let onRevealInFinder: (() -> Void)?
     let onDuplicate: () -> Void
     let onExport: (() -> Void)?
     let onTrash: () -> Void
@@ -134,13 +137,22 @@ struct AssetContextMenuView: View {
                 onDeletePermanently(); onDismiss()
             })
         } else {
+            row(.init(title: "Open", systemImage: "arrow.up.left.and.arrow.down.right") {
+                onOpen(); onDismiss()
+            })
+            divider
             if !asset.prompt.isEmpty {
                 row(.init(title: "Copy Prompt", systemImage: "doc.on.doc") {
                     onCopyPrompt(); onDismiss()
                 })
-                divider
             }
-            row(.init(title: "Add to Collection", systemImage: "folder", showsChevron: true) {
+            if let onCopyImage {
+                row(.init(title: "Copy Image", systemImage: "photo.on.rectangle") {
+                    onCopyImage(); onDismiss()
+                })
+            }
+            divider
+            row(.init(title: "Add to Collection", systemImage: "folder.badge.plus", showsChevron: true) {
                 page = .collections
             })
             row(.init(title: "Add to Project", systemImage: "square.stack.3d.up", showsChevron: true) {
@@ -150,6 +162,11 @@ struct AssetContextMenuView: View {
             row(.init(title: "Duplicate", systemImage: "plus.square.on.square") {
                 onDuplicate(); onDismiss()
             })
+            if let onRevealInFinder {
+                row(.init(title: "Reveal in Finder", systemImage: "folder") {
+                    onRevealInFinder(); onDismiss()
+                })
+            }
             if let onExport {
                 row(.init(title: "Export…", systemImage: "square.and.arrow.up") {
                     onExport(); onDismiss()

@@ -1368,7 +1368,10 @@ struct GalleryGridView: View {
                     collections: allCollections,
                     projects: allSpaces,
                     isTrash: isTrashView,
+                    onOpen: { selectedAsset = target.asset },
                     onCopyPrompt: { copyPrompt(target.asset) },
+                    onCopyImage: canCopyImage(target.asset) ? { copyImageToPasteboard(target.asset) } : nil,
+                    onRevealInFinder: target.asset.relativeFilePath.isEmpty ? nil : { revealInFinder(target.asset) },
                     onDuplicate: { duplicateAsset(target.asset) },
                     onExport: target.asset.relativeFilePath.isEmpty ? nil : { exportAsset(target.asset) },
                     onTrash: { moveAssetToTrash(target.asset) },
@@ -1385,7 +1388,25 @@ struct GalleryGridView: View {
                 )
                 .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .topLeading)))
             }
+            .onExitCommand { dismissContextMenu() }
         }
+    }
+
+    private func canCopyImage(_ asset: AssetItem) -> Bool {
+        !asset.relativeFilePath.isEmpty && (asset.assetType == .image || asset.assetType == .gif)
+    }
+
+    private func copyImageToPasteboard(_ asset: AssetItem) {
+        let url = FileManagerHelper.absolutePath(for: asset.relativeFilePath)
+        guard let image = NSImage(contentsOf: url) else { return }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.writeObjects([image])
+    }
+
+    private func revealInFinder(_ asset: AssetItem) {
+        let url = FileManagerHelper.absolutePath(for: asset.relativeFilePath)
+        NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 
     private func dismissContextMenu() {
