@@ -1360,10 +1360,16 @@ struct GalleryGridView: View {
             }
         }
 
+        // Drop the in-memory caches on the main actor (where this runs — fast,
+        // just removing dictionary entries)...
+        if !filePath.isEmpty {
+            ImageCache.shared.removeCachedImages(for: filePath)
+        }
+
+        // ...and delete the file from disk off the main thread (I/O).
         Task.detached {
             if !filePath.isEmpty {
                 FileManagerHelper.deleteFile(relativePath: filePath)
-                ImageCache.shared.removeCachedImages(for: filePath)
             }
         }
 
