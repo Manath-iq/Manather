@@ -130,16 +130,16 @@ struct GalleryGridView: View {
     }
 
     /// Distributes items across columns for masonry layout (shortest column first)
-    private func distributeToColumns(availableWidth: CGFloat) -> [[AssetItem]] {
+    private func distributeToColumns(_ items: [AssetItem], availableWidth: CGFloat) -> [[AssetItem]] {
         let baseCount = max(1, Int(columnCount))
         // Target about 160pt minimum width per column to prevent squishing
         let maxColumnsForWidth = max(1, Int(availableWidth / 160))
         let count = min(baseCount, maxColumnsForWidth)
-        
+
         var columns = Array(repeating: [AssetItem](), count: count)
         var heights = Array(repeating: CGFloat(0), count: count)
 
-        for item in filteredAssets {
+        for item in items {
             let minIndex = heights.enumerated()
                 .min(by: { $0.element < $1.element })!.offset
             columns[minIndex].append(item)
@@ -153,7 +153,12 @@ struct GalleryGridView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .bottomTrailing) {
+        // Compute the filtered + sorted list once per render and reuse it for the
+        // empty check, the grid layout and the detail view. Previously each of
+        // those re-ran the whole filter+sort, and the grid did it again on every
+        // layout pass (e.g. while resizing the window) — the main source of lag.
+        let visibleAssets = filteredAssets
+        return ZStack(alignment: .bottomTrailing) {
             VStack(spacing: 0) {
                 // Top toolbar
                 topBar
@@ -162,12 +167,12 @@ struct GalleryGridView: View {
                 ZStack {
                     if selectedTab == .library {
                         Group {
-                            if filteredAssets.isEmpty {
+                            if visibleAssets.isEmpty {
                                 emptyStateView
                             } else {
                                 VStack(spacing: 0) {
                                     filterBadgeBar
-                                    masonryGrid
+                                    masonryGrid(visibleAssets)
                                 }
                             }
                         }
@@ -193,7 +198,7 @@ struct GalleryGridView: View {
             if selectedAsset != nil {
                 AssetDetailView(
                     selectedAsset: $selectedAsset,
-                    assets: filteredAssets
+                    assets: visibleAssets
                 )
                 // Smooth zoom-in/out instead of a flat fade.
                 .transition(.scale(scale: 0.93).combined(with: .opacity))
@@ -1010,10 +1015,10 @@ struct GalleryGridView: View {
 
     // MARK: - Masonry Grid
 
-    private var masonryGrid: some View {
+    private func masonryGrid(_ items: [AssetItem]) -> some View {
         GeometryReader { geometry in
             let spacing: CGFloat = 14
-            let columns = distributeToColumns(availableWidth: geometry.size.width)
+            let columns = distributeToColumns(items, availableWidth: geometry.size.width)
             
             // Calculate column width in points
             let colWidth = max(100, (geometry.size.width - CGFloat(columns.count - 1) * spacing - 40) / CGFloat(columns.count))
