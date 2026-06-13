@@ -804,8 +804,7 @@ struct GalleryGridView: View {
                             .stroke(isDarkMode ? Color.white.opacity(0.1) : Color.black.opacity(0.08), lineWidth: 1)
                     )
 
-                if !items.isEmpty {
-                    let cover = items.first!
+                if let cover = items.first {
                     if !cover.relativeFilePath.isEmpty, cover.assetType != .codeSnippet {
                         CachedImageView(relativePath: cover.relativeFilePath, maxSize: 150)
                             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))

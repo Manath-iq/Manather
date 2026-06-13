@@ -117,49 +117,60 @@ final class ColorIndexer {
 
     private var inFlight = Set<UUID>()
 
-    /// Extract and persist dominant colors for one asset (no-op if present).
+    /// True if the asset still needs its dominant-color palette extracted.
+    private func needsColors(_ asset: AssetItem) -> Bool {
+        (asset.dominantColorsHex == nil || asset.dominantColorsHex?.isEmpty == true)
+        && !asset.relativeFilePath.isEmpty
+        && (asset.assetType == .image || asset.assetType == .gif || asset.assetType == .video)
+    }
+
+    /// Extract and persist dominant colors for one asset (no-op if present or already running).
     func ensureColors(for asset: AssetItem) {
-        guard asset.dominantColorsHex == nil || asset.dominantColorsHex?.isEmpty == true,
-              !asset.relativeFilePath.isEmpty,
-              asset.assetType == .image || asset.assetType == .gif || asset.assetType == .video,
-              !inFlight.contains(asset.id)
-        else { return }
-
+        guard needsColors(asset), !inFlight.contains(asset.id) else { return }
         inFlight.insert(asset.id)
-        let path = asset.relativeFilePath
-        let id = asset.id
-
-        Task {
-            // Small thumbnail is plenty for palette extraction (decoded off-main by ImageCache)
-            guard let thumb = await ImageCache.shared.thumbnail(for: path, maxSize: 200) else {
-                inFlight.remove(id)
-                return
-            }
-
-            // 40×40 sample extraction is a few ms — fine on main; yield to stay responsive
-            await Task.yield()
-            let nsColors = DominantColorExtractor.extractColors(from: thumb, count: 8)
-            let hexes = nsColors.map { color -> String in
-                guard let rgb = color.usingColorSpace(.deviceRGB) else { return "#FFFFFF" }
-                return String(
-                    format: "#%02X%02X%02X",
-                    Int(rgb.redComponent * 255),
-                    Int(rgb.greenComponent * 255),
-                    Int(rgb.blueComponent * 255)
-                )
-            }
-
-            if !hexes.isEmpty {
-                asset.dominantColorsHex = hexes
-            }
-            inFlight.remove(id)
-        }
+        Task { await extractAndStore(for: asset) }
     }
 
     /// Backfill colors for a batch of assets missing them.
+    /// Processed one image at a time so we never decode a whole library at once —
+    /// doing them all in parallel spikes memory and stutters the UI on launch.
     func backfill(assets: [AssetItem]) {
-        for asset in assets where asset.dominantColorsHex == nil || asset.dominantColorsHex?.isEmpty == true {
-            ensureColors(for: asset)
+        let pending = assets.filter { needsColors($0) && !inFlight.contains($0.id) }
+        guard !pending.isEmpty else { return }
+        pending.forEach { inFlight.insert($0.id) }
+
+        Task {
+            for asset in pending {
+                await extractAndStore(for: asset)
+            }
+        }
+    }
+
+    /// Decodes a small thumbnail, extracts the palette, and stores it on the asset.
+    /// Caller must have already inserted the asset id into `inFlight`.
+    private func extractAndStore(for asset: AssetItem) async {
+        let id = asset.id
+        let path = asset.relativeFilePath
+        defer { inFlight.remove(id) }
+
+        // Small thumbnail is plenty for palette extraction (decoded off-main by ImageCache)
+        guard let thumb = await ImageCache.shared.thumbnail(for: path, maxSize: 200) else { return }
+
+        // 40×40 sample extraction is a few ms — fine on main; yield to stay responsive
+        await Task.yield()
+        let nsColors = DominantColorExtractor.extractColors(from: thumb, count: 8)
+        let hexes = nsColors.map { color -> String in
+            guard let rgb = color.usingColorSpace(.deviceRGB) else { return "#FFFFFF" }
+            return String(
+                format: "#%02X%02X%02X",
+                Int(rgb.redComponent * 255),
+                Int(rgb.greenComponent * 255),
+                Int(rgb.blueComponent * 255)
+            )
+        }
+
+        if !hexes.isEmpty {
+            asset.dominantColorsHex = hexes
         }
     }
 }
