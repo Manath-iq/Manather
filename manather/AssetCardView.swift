@@ -10,19 +10,14 @@ import SwiftData
 import UniformTypeIdentifiers
 
 struct AssetCardView: View {
-    @Environment(\.modelContext) private var modelContext
-
     let asset: AssetItem
     let isSelected: Bool
     let isTrashView: Bool
     var maxImageSize: CGFloat = 500
-    /// Passed in from parent — avoids a @Query per card (huge perf win)
-    let availableCollections: [String]
-    let availableSpaces: [String]
     let onSelect: () -> Void
-    let onTrash: () -> Void
-    let onRestore: () -> Void
-    let onDeletePermanently: () -> Void
+    /// Right-click — reports the card's frame (in the gallery space) so the
+    /// custom context menu can position itself.
+    let onContextMenu: (CGRect) -> Void
 
     @AppStorage("isDarkMode") private var isDarkMode = false
     @State private var isHovered = false
@@ -62,8 +57,8 @@ struct AssetCardView: View {
             .onTapGesture {
                 onSelect()
             }
-            .contextMenu {
-                contextMenuItems
+            .onRightClick(in: .named("gallerySpace")) { frame in
+                onContextMenu(frame)
             }
     }
 
@@ -360,146 +355,4 @@ struct AssetCardView: View {
         )
     }
 
-    // MARK: - Context Menu
-
-    private var collectionsList: [String] { availableCollections }
-    private var spacesList: [String] { availableSpaces }
-
-    private func copyPrompt() {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(asset.prompt, forType: .string)
-    }
-
-    private func duplicateAsset() {
-        var newPath = asset.relativeFilePath
-        if !asset.relativeFilePath.isEmpty {
-            let srcURL = FileManagerHelper.absolutePath(for: asset.relativeFilePath)
-            let ext = srcURL.pathExtension
-            let newFilename = "copy_\(UUID().uuidString).\(ext)"
-            let destURL = FileManagerHelper.assetsDirectory.appendingPathComponent(newFilename)
-            try? FileManager.default.copyItem(at: srcURL, to: destURL)
-            newPath = newFilename
-        }
-        
-        let copy = AssetItem(
-            title: "\(asset.title) (Copy)",
-            relativeFilePath: newPath,
-            sourceURL: asset.sourceURL,
-            prompt: asset.prompt,
-            notes: asset.notes,
-            imageWidth: asset.imageWidth,
-            imageHeight: asset.imageHeight,
-            typeRaw: asset.typeRaw,
-            codeLanguage: asset.codeLanguage,
-            codeContent: asset.codeContent,
-            dominantColorsHex: asset.dominantColorsHex,
-            collectionName: asset.collectionName,
-            spaceName: asset.spaceName
-        )
-        modelContext.insert(copy)
-    }
-
-    private func exportAsset() {
-        guard !asset.relativeFilePath.isEmpty else { return }
-        
-        let savePanel = NSSavePanel()
-        let ext = (asset.relativeFilePath as NSString).pathExtension
-        if let type = UTType(filenameExtension: ext) {
-            savePanel.allowedContentTypes = [type]
-        } else {
-            savePanel.allowedContentTypes = [.image]
-        }
-        savePanel.canCreateDirectories = true
-        savePanel.nameFieldStringValue = asset.title
-        
-        savePanel.begin { response in
-            if response == .OK, let destinationURL = savePanel.url {
-                let sourceURL = FileManagerHelper.absolutePath(for: asset.relativeFilePath)
-                try? FileManager.default.removeItem(at: destinationURL)
-                try? FileManager.default.copyItem(at: sourceURL, to: destinationURL)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var contextMenuItems: some View {
-        if isTrashView {
-            Button {
-                onRestore()
-            } label: {
-                Label("Restore", systemImage: "arrow.uturn.backward")
-            }
-
-            Divider()
-
-            Button(role: .destructive) {
-                onDeletePermanently()
-            } label: {
-                Label("Delete Permanently", systemImage: "trash.slash")
-            }
-        } else {
-            if !asset.prompt.isEmpty {
-                Button {
-                    copyPrompt()
-                } label: {
-                    Label("Copy Prompt", systemImage: "doc.on.doc")
-                }
-                
-                Divider()
-            }
-            
-            Menu {
-                ForEach(collectionsList, id: \.self) { col in
-                    Button(col) {
-                        asset.collectionName = col
-                    }
-                }
-                Divider()
-                Button("Clear Collection") {
-                    asset.collectionName = nil
-                }
-            } label: {
-                Label("Add to Collection", systemImage: "folder")
-            }
-            
-            Menu {
-                ForEach(spacesList, id: \.self) { space in
-                    Button(space) {
-                        asset.spaceName = space
-                    }
-                }
-                Divider()
-                Button("Remove from Project") {
-                    asset.spaceName = nil
-                }
-            } label: {
-                Label("Add to Project", systemImage: "square.stack.3d.up")
-            }
-            
-            Divider()
-            
-            Button {
-                duplicateAsset()
-            } label: {
-                Label("Duplicate", systemImage: "plus.square.on.square")
-            }
-            
-            if !asset.relativeFilePath.isEmpty {
-                Button {
-                    exportAsset()
-                } label: {
-                    Label("Export...", systemImage: "square.and.arrow.up")
-                }
-            }
-            
-            Divider()
-
-            Button(role: .destructive) {
-                onTrash()
-            } label: {
-                Label("Move to Trash", systemImage: "trash")
-            }
-        }
-    }
 }

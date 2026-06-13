@@ -33,6 +33,13 @@ enum SortOrder: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+/// The asset whose custom context menu is open, plus the card's frame (in the
+/// gallery coordinate space) used to position the menu.
+struct ContextTarget {
+    let asset: AssetItem
+    let frame: CGRect
+}
+
 struct GalleryGridView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.displayScale) private var displayScale
@@ -55,6 +62,8 @@ struct GalleryGridView: View {
     @State private var isSearchExpanded = false
     @State private var assetToDelete: AssetItem? = nil
     @State private var showDeleteConfirmation = false
+
+    @State private var contextTarget: ContextTarget?
 
     @State private var isDropTargeted = false
     @State private var showWebLinkSheet = false
@@ -203,7 +212,13 @@ struct GalleryGridView: View {
                 // Smooth zoom-in/out instead of a flat fade.
                 .transition(.scale(scale: 0.93).combined(with: .opacity))
             }
+
+            // Custom right-click context menu (dark panel + dimmed backdrop)
+            if let target = contextTarget {
+                contextMenuOverlay(target)
+            }
         }
+        .coordinateSpace(name: "gallerySpace")
         .focusEffectDisabled()
         .overlay(
             // Drop target overlay
@@ -1058,27 +1073,15 @@ struct GalleryGridView: View {
                                     isSelected: selectedAsset?.id == asset.id,
                                     isTrashView: isTrashView,
                                     maxImageSize: targetMaxSize,
-                                    availableCollections: allCollections,
-                                    availableSpaces: allSpaces,
                                     onSelect: {
                                         // Animation is driven once by ContentView's
                                         // .animation(value: selectedAsset != nil).
                                         selectedAsset = asset
                                     },
-                                    onTrash: {
-                                        moveAssetToTrash(asset)
-                                    },
-                                    onRestore: {
-                                        if selectedAsset?.id == asset.id {
-                                            selectedAsset = nil
+                                    onContextMenu: { frame in
+                                        withAnimation(.spring(response: 0.26, dampingFraction: 0.82)) {
+                                            contextTarget = ContextTarget(asset: asset, frame: frame)
                                         }
-                                        Task { @MainActor in
-                                            asset.isTrash = false
-                                        }
-                                    },
-                                    onDeletePermanently: {
-                                        assetToDelete = asset
-                                        showDeleteConfirmation = true
                                     }
                                 )
                                 .transition(.asymmetric(
@@ -1344,6 +1347,114 @@ struct GalleryGridView: View {
         }
         Task { @MainActor in
             asset.isTrash = true
+        }
+    }
+
+    // MARK: - Custom Context Menu
+
+    private let contextMenuWidth: CGFloat = 232
+
+    private func contextMenuOverlay(_ target: ContextTarget) -> some View {
+        GeometryReader { geo in
+            ZStack(alignment: .topLeading) {
+                // Dimmed backdrop — click anywhere to dismiss.
+                Color.black.opacity(0.18)
+                    .ignoresSafeArea()
+                    .contentShape(Rectangle())
+                    .onTapGesture { dismissContextMenu() }
+
+                AssetContextMenuView(
+                    asset: target.asset,
+                    collections: allCollections,
+                    projects: allSpaces,
+                    isTrash: isTrashView,
+                    onCopyPrompt: { copyPrompt(target.asset) },
+                    onDuplicate: { duplicateAsset(target.asset) },
+                    onExport: target.asset.relativeFilePath.isEmpty ? nil : { exportAsset(target.asset) },
+                    onTrash: { moveAssetToTrash(target.asset) },
+                    onRestore: { restoreAsset(target.asset) },
+                    onDeletePermanently: {
+                        assetToDelete = target.asset
+                        showDeleteConfirmation = true
+                    },
+                    onDismiss: { dismissContextMenu() }
+                )
+                .offset(
+                    x: min(target.frame.minX, max(8, geo.size.width - contextMenuWidth - 12)),
+                    y: min(target.frame.minY, max(8, geo.size.height - 360))
+                )
+                .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .topLeading)))
+            }
+        }
+    }
+
+    private func dismissContextMenu() {
+        withAnimation(.easeOut(duration: 0.14)) {
+            contextTarget = nil
+        }
+    }
+
+    private func restoreAsset(_ asset: AssetItem) {
+        if selectedAsset?.id == asset.id {
+            selectedAsset = nil
+        }
+        asset.isTrash = false
+    }
+
+    private func copyPrompt(_ asset: AssetItem) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(asset.prompt, forType: .string)
+    }
+
+    private func duplicateAsset(_ asset: AssetItem) {
+        var newPath = asset.relativeFilePath
+        if !asset.relativeFilePath.isEmpty {
+            let srcURL = FileManagerHelper.absolutePath(for: asset.relativeFilePath)
+            let ext = srcURL.pathExtension
+            let newFilename = "copy_\(UUID().uuidString).\(ext)"
+            let destURL = FileManagerHelper.assetsDirectory.appendingPathComponent(newFilename)
+            try? FileManager.default.copyItem(at: srcURL, to: destURL)
+            newPath = newFilename
+        }
+
+        let copy = AssetItem(
+            title: "\(asset.title) (Copy)",
+            relativeFilePath: newPath,
+            sourceURL: asset.sourceURL,
+            prompt: asset.prompt,
+            notes: asset.notes,
+            imageWidth: asset.imageWidth,
+            imageHeight: asset.imageHeight,
+            typeRaw: asset.typeRaw,
+            codeLanguage: asset.codeLanguage,
+            codeContent: asset.codeContent,
+            dominantColorsHex: asset.dominantColorsHex,
+            collectionName: asset.collectionName,
+            spaceName: asset.spaceName
+        )
+        modelContext.insert(copy)
+    }
+
+    private func exportAsset(_ asset: AssetItem) {
+        guard !asset.relativeFilePath.isEmpty else { return }
+
+        let savePanel = NSSavePanel()
+        let ext = (asset.relativeFilePath as NSString).pathExtension
+        if let type = UTType(filenameExtension: ext) {
+            savePanel.allowedContentTypes = [type]
+        } else {
+            savePanel.allowedContentTypes = [.image]
+        }
+        savePanel.canCreateDirectories = true
+        savePanel.nameFieldStringValue = asset.title
+
+        savePanel.begin { response in
+            if response == .OK, let destinationURL = savePanel.url {
+                let sourceURL = FileManagerHelper.absolutePath(for: asset.relativeFilePath)
+                try? FileManager.default.removeItem(at: destinationURL)
+                try? FileManager.default.copyItem(at: sourceURL, to: destinationURL)
+            }
         }
     }
 
