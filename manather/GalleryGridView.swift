@@ -350,7 +350,7 @@ struct GalleryGridView: View {
                 // Center (Segmented Control)
                 topSegmentedControl
             }
-            .padding(.top, 12)
+            .padding(.top, ManatherTheme.titleBarInset)
             .padding(.bottom, 14)
             
             // Row 2: Tabs and Filters

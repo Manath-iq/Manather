@@ -105,7 +105,8 @@ struct BoardListView: View {
             .buttonStyle(.microAnimated)
         }
         .padding(.horizontal, 24)
-        .padding(.vertical, 16)
+        .padding(.top, ManatherTheme.titleBarInset)
+        .padding(.bottom, 16)
         .background(ManatherTheme.paper.opacity(0.6))
         .overlay(alignment: .bottom) {
             Rectangle().fill(ManatherTheme.hairline).frame(height: 1)

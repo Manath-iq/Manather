@@ -87,7 +87,7 @@ struct BoardView: View {
             // Left tool palette.
             BoardToolbar(vm: vm, onUndo: undo, onRedo: redo, onExport: exportPNG)
                 .padding(.leading, 16)
-                .padding(.top, 70)
+                .padding(.top, ManatherTheme.titleBarInset + 58)
         }
         .overlay(alignment: .trailing) {
             if vm.showLibraryPanel {
@@ -457,7 +457,8 @@ struct BoardView: View {
             Color.clear.frame(width: 32, height: 32)
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.top, ManatherTheme.titleBarInset)
+        .padding(.bottom, 12)
         .background(.ultraThinMaterial.opacity(0.0)) // keep layout; bar floats over canvas
     }
 }

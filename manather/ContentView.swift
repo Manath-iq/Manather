@@ -47,6 +47,10 @@ enum ManatherTheme {
     )
     static let accent = Color(red: 0.14, green: 0.54, blue: 0.52)
 
+    /// Top inset that keeps content clear of the macOS window controls
+    /// (the red/yellow/green "traffic lights") on our hidden-title-bar window.
+    static let titleBarInset: CGFloat = 28
+
     // MARK: - Motion
     // Shared animation curves so every transition in the app feels the same.
     /// For large overlays opening / closing (the full-screen viewer).
