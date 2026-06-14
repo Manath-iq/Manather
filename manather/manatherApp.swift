@@ -16,6 +16,8 @@ struct manatherApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             AssetItem.self,
+            Board.self,
+            BoardItem.self,
         ])
         let modelConfiguration = ModelConfiguration(
             schema: schema,

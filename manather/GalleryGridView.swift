@@ -65,6 +65,9 @@ struct GalleryGridView: View {
 
     @State private var contextTarget: ContextTarget?
 
+    // When set, the boards list for this project is shown as a full-screen layer.
+    @State private var boardsProjectName: String?
+
     @State private var isDropTargeted = false
     @State private var showWebLinkSheet = false
     @State private var showCodeSnippetSheet = false
@@ -216,6 +219,17 @@ struct GalleryGridView: View {
             // Custom right-click context menu (dark panel + dimmed backdrop)
             if let target = contextTarget {
                 contextMenuOverlay(target)
+            }
+
+            // Boards layer for a project (list of boards → canvas)
+            if let projectName = boardsProjectName {
+                BoardListView(projectName: projectName) {
+                    withAnimation(ManatherTheme.overlayMotion) {
+                        boardsProjectName = nil
+                    }
+                }
+                .transition(.scale(scale: 0.96).combined(with: .opacity))
+                .zIndex(10)
             }
         }
         .coordinateSpace(name: "gallerySpace")
@@ -808,6 +822,13 @@ struct GalleryGridView: View {
                     .buttonStyle(.plain)
                     .contextMenu {
                         if name != "Unassigned" {
+                            Button {
+                                withAnimation(ManatherTheme.overlayMotion) {
+                                    boardsProjectName = name
+                                }
+                            } label: {
+                                Label("Boards", systemImage: "rectangle.3.group")
+                            }
                             Button {
                                 ContextPackExporter.export(projectName: name, assets: items)
                             } label: {
