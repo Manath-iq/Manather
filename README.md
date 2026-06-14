@@ -10,6 +10,7 @@ Collect references, skills, MCP servers, snippets, and prompts — then export a
 [![Platform](https://img.shields.io/badge/platform-macOS%2014%2B-black?logo=apple)](https://www.apple.com/macos/)
 [![Swift](https://img.shields.io/badge/Swift-5.9-orange?logo=swift&logoColor=white)](https://swift.org)
 [![SwiftUI](https://img.shields.io/badge/SwiftUI-SwiftData-blue?logo=swift&logoColor=white)](https://developer.apple.com/xcode/swiftui/)
+[![Build](https://github.com/Manath-iq/Manather/actions/workflows/build.yml/badge.svg)](https://github.com/Manath-iq/Manather/actions/workflows/build.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 </div>
@@ -68,6 +69,14 @@ Hand the folder to an AI agent and it has everything it needs to start.
 A full-screen viewer with pinch-to-zoom, keyboard navigation, a glassmorphic inspector, and a
 live color palette you can copy to the clipboard.
 
+### ⌨️ Native niceties
+- **Custom context menu** — a styled dark right-click menu (not the system one) for open, copy
+  prompt/image, organize into collections/projects, reveal in Finder, export, and delete
+- **Zoom the whole interface** with **⌘+ / ⌘− / ⌘0**, like Notes or Messages
+- **Fluid motion** — sliding tab & category indicators, a smooth zoom into the viewer, and a
+  consistent hover lift on every card
+- **Light & dark themes**, plus search (**⌘F**) and quick tab switching (**⌘1–3**)
+
 ---
 
 ## Screenshots
@@ -115,6 +124,7 @@ no broken links when originals move.
 - [x] Skills & MCP server types
 - [x] Color filter, search, sort
 - [x] Projects + Context Pack export
+- [x] Continuous integration (GitHub Actions builds every push)
 - [ ] App icon polish & screenshots
 
 **Next**
