@@ -8,6 +8,7 @@
 //
 
 import SwiftUI
+import AppKit
 
 struct BoardItemView: View {
     @Bindable var item: BoardItem
@@ -17,6 +18,7 @@ struct BoardItemView: View {
     let isSelected: Bool
     let isInteractive: Bool   // true when the Select tool is active
     let isEditing: Bool       // text/note being typed into
+    var isExport: Bool = false // static render for PNG export (no async images)
     let onSelect: () -> Void
     let onBeginInteraction: () -> Void  // snapshot for undo before a move/resize
     let onBeginEditing: () -> Void
@@ -85,10 +87,14 @@ struct BoardItemView: View {
         switch item.kind {
         case .image:
             if let asset, !asset.relativeFilePath.isEmpty {
-                CachedImageView(
-                    relativePath: asset.relativeFilePath,
-                    maxSize: max(120, min(1600, screenSize.width * 2))
-                )
+                if isExport {
+                    SyncImageView(path: asset.relativeFilePath)
+                } else {
+                    CachedImageView(
+                        relativePath: asset.relativeFilePath,
+                        maxSize: max(120, min(1600, screenSize.width * 2))
+                    )
+                }
             } else {
                 placeholder
             }
@@ -322,6 +328,28 @@ struct BoardItemView: View {
                 resizeStart = nil
                 onCommit()
             }
+    }
+}
+
+/// Loads an image synchronously for PNG export (ImageRenderer can't wait for
+/// the async CachedImageView). Prefers the in-memory cache, else reads the file.
+private struct SyncImageView: View {
+    let path: String
+
+    var body: some View {
+        if let image = loadImage() {
+            Image(nsImage: image)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            Color.white.opacity(0.06)
+        }
+    }
+
+    private func loadImage() -> NSImage? {
+        ImageCache.shared.cachedFullImage(for: path)
+            ?? NSImage(contentsOf: FileManagerHelper.absolutePath(for: path))
     }
 }
 

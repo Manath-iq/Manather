@@ -13,6 +13,7 @@ struct BoardToolbar: View {
     @Bindable var vm: BoardViewModel
     var onUndo: () -> Void
     var onRedo: () -> Void
+    var onExport: () -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
@@ -87,6 +88,15 @@ struct BoardToolbar: View {
                     isActive: false,
                     isEnabled: vm.canRedo,
                     action: onRedo
+                )
+
+                divider
+
+                toolButton(
+                    symbol: "square.and.arrow.down",
+                    help: "Export board as PNG",
+                    isActive: false,
+                    action: onExport
                 )
             }
             .padding(6)

@@ -10,6 +10,7 @@
 import SwiftUI
 import SwiftData
 import AppKit
+import UniformTypeIdentifiers
 
 struct BoardView: View {
     @Bindable var board: Board
@@ -83,7 +84,7 @@ struct BoardView: View {
             }
 
             // Left tool palette.
-            BoardToolbar(vm: vm, onUndo: undo, onRedo: redo)
+            BoardToolbar(vm: vm, onUndo: undo, onRedo: redo, onExport: exportPNG)
                 .padding(.leading, 16)
                 .padding(.top, 70)
         }
@@ -171,6 +172,42 @@ struct BoardView: View {
         vm.selectedItemID = item.id
         vm.editingItemID = item.id
         vm.tool = .select
+    }
+
+    // MARK: - Export
+
+    /// Render the whole board (all items, with padding) to a PNG and save it via
+    /// a save panel. No grid, no toolbars (spec §10).
+    private func exportPNG() {
+        let items = board.items
+        guard !items.isEmpty else { return }
+
+        let padding: CGFloat = 40
+        let minX = CGFloat(items.map { $0.x }.min() ?? 0)
+        let minY = CGFloat(items.map { $0.y }.min() ?? 0)
+        let maxX = CGFloat(items.map { $0.x + $0.width }.max() ?? 0)
+        let maxY = CGFloat(items.map { $0.y + $0.height }.max() ?? 0)
+
+        let origin = CGPoint(x: minX - padding, y: minY - padding)
+        let size = CGSize(width: (maxX - minX) + padding * 2, height: (maxY - minY) + padding * 2)
+        guard size.width > 1, size.height > 1 else { return }
+
+        let renderer = ImageRenderer(
+            content: BoardExportView(items: items, assetByID: assetByID, origin: origin, size: size)
+        )
+        renderer.scale = 2 // crisp on retina
+
+        guard let nsImage = renderer.nsImage,
+              let tiff = nsImage.tiffRepresentation,
+              let rep = NSBitmapImageRep(data: tiff),
+              let png = rep.representation(using: .png, properties: [:]) else { return }
+
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.png]
+        panel.nameFieldStringValue = (board.title.isEmpty ? "board" : board.title) + ".png"
+        if panel.runModal() == .OK, let url = panel.url {
+            try? png.write(to: url)
+        }
     }
 
     /// Owner decision §12.4: if a board image's asset no longer exists in the
