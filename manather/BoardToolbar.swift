@@ -11,6 +11,8 @@ import SwiftUI
 
 struct BoardToolbar: View {
     @Bindable var vm: BoardViewModel
+    var onUndo: () -> Void
+    var onRedo: () -> Void
 
     var body: some View {
         VStack(spacing: 4) {
@@ -30,6 +32,24 @@ struct BoardToolbar: View {
                 vm.tool = .select
                 vm.showLibraryPanel = true
             }
+
+            divider
+
+            toolButton(
+                symbol: "arrow.uturn.backward",
+                help: "Undo",
+                isActive: false,
+                isEnabled: vm.canUndo,
+                action: onUndo
+            )
+
+            toolButton(
+                symbol: "arrow.uturn.forward",
+                help: "Redo",
+                isActive: false,
+                isEnabled: vm.canRedo,
+                action: onRedo
+            )
         }
         .padding(6)
         .background(
@@ -43,16 +63,24 @@ struct BoardToolbar: View {
         .shadow(color: .black.opacity(0.35), radius: 16, y: 8)
     }
 
+    private var divider: some View {
+        Rectangle()
+            .fill(Color.white.opacity(0.10))
+            .frame(width: 24, height: 1)
+            .padding(.vertical, 2)
+    }
+
     private func toolButton(
         symbol: String,
         help: String,
         isActive: Bool,
+        isEnabled: Bool = true,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(isActive ? .white : .white.opacity(0.65))
+                .foregroundStyle(isActive ? .white : .white.opacity(isEnabled ? 0.65 : 0.25))
                 .frame(width: 36, height: 36)
                 .background(
                     RoundedRectangle(cornerRadius: 9, style: .continuous)
@@ -61,6 +89,7 @@ struct BoardToolbar: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.microAnimated)
+        .disabled(!isEnabled)
         .help(help)
     }
 }

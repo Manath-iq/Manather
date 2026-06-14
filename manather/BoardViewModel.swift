@@ -32,6 +32,15 @@ final class BoardViewModel {
     /// can place new items near the center of what the user is looking at.
     var viewportSize: CGSize = .zero
 
+    // Undo / redo history — arrays of layout snapshots (see BoardItemSnapshot).
+    // Kept in memory only, capped so the history can't grow without bound.
+    var undoStack: [[BoardItemSnapshot]] = []
+    var redoStack: [[BoardItemSnapshot]] = []
+    static let maxHistory = 40
+
+    var canUndo: Bool { !undoStack.isEmpty }
+    var canRedo: Bool { !redoStack.isEmpty }
+
     static let minZoom: CGFloat = 0.1
     static let maxZoom: CGFloat = 4.0
 

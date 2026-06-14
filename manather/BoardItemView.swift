@@ -17,6 +17,7 @@ struct BoardItemView: View {
     let isSelected: Bool
     let isInteractive: Bool   // true when the Select tool is active
     let onSelect: () -> Void
+    let onBeginInteraction: () -> Void  // snapshot for undo before a move/resize
     let onCommit: () -> Void   // called when a move/resize finishes (persist hook)
 
     @State private var moveStart: CGPoint?
@@ -125,6 +126,7 @@ struct BoardItemView: View {
                 if moveStart == nil {
                     moveStart = CGPoint(x: item.x, y: item.y)
                     onSelect()
+                    if !item.isLocked { onBeginInteraction() }
                 }
                 guard let start = moveStart, !item.isLocked else { return }
                 item.x = Double(start.x) + Double(value.translation.width / zoom)
@@ -142,6 +144,7 @@ struct BoardItemView: View {
                 if resizeStart == nil {
                     resizeStart = CGRect(x: item.x, y: item.y, width: item.width, height: item.height)
                     onSelect()
+                    if !item.isLocked { onBeginInteraction() }
                 }
                 guard let s = resizeStart, !item.isLocked else { return }
                 let dx = value.translation.width / zoom

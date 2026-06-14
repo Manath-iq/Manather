@@ -14,6 +14,7 @@ struct BoardCanvasView: View {
     @Bindable var board: Board
     @Bindable var vm: BoardViewModel
     let assetByID: [UUID: AssetItem]
+    let onItemInteractionBegan: () -> Void
 
     // Gesture baselines (captured on gesture start).
     @State private var panStart: CGSize?
@@ -58,6 +59,7 @@ struct BoardCanvasView: View {
                     isSelected: vm.selectedItemID == item.id,
                     isInteractive: vm.tool == .select,
                     onSelect: { vm.selectedItemID = item.id },
+                    onBeginInteraction: onItemInteractionBegan,
                     onCommit: {}
                 )
             }

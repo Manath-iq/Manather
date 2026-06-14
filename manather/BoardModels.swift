@@ -161,3 +161,88 @@ final class BoardItem {
         self.frameTitle = frameTitle
     }
 }
+
+// MARK: - Undo snapshot
+
+/// A plain-value copy of a BoardItem's state. The undo/redo history stores
+/// arrays of these so we can restore the whole layout (including re-creating
+/// deleted items) without holding onto SwiftData objects. See spec §6.4.
+struct BoardItemSnapshot {
+    var id: UUID
+    var kindRaw: String
+    var x: Double
+    var y: Double
+    var width: Double
+    var height: Double
+    var rotation: Double
+    var zIndex: Int
+    var isLocked: Bool
+    var assetID: UUID?
+    var text: String?
+    var fontName: String?
+    var fontSize: Double?
+    var isBold: Bool
+    var isItalic: Bool
+    var textAlignRaw: String?
+    var textColorHex: String?
+    var fillColorHex: String?
+    var shapeKindRaw: String?
+    var frameTitle: String?
+
+    init(_ item: BoardItem) {
+        id = item.id
+        kindRaw = item.kindRaw
+        x = item.x
+        y = item.y
+        width = item.width
+        height = item.height
+        rotation = item.rotation
+        zIndex = item.zIndex
+        isLocked = item.isLocked
+        assetID = item.assetID
+        text = item.text
+        fontName = item.fontName
+        fontSize = item.fontSize
+        isBold = item.isBold
+        isItalic = item.isItalic
+        textAlignRaw = item.textAlignRaw
+        textColorHex = item.textColorHex
+        fillColorHex = item.fillColorHex
+        shapeKindRaw = item.shapeKindRaw
+        frameTitle = item.frameTitle
+    }
+
+    /// Copy this state onto an existing item.
+    func apply(to item: BoardItem) {
+        item.kindRaw = kindRaw
+        item.x = x
+        item.y = y
+        item.width = width
+        item.height = height
+        item.rotation = rotation
+        item.zIndex = zIndex
+        item.isLocked = isLocked
+        item.assetID = assetID
+        item.text = text
+        item.fontName = fontName
+        item.fontSize = fontSize
+        item.isBold = isBold
+        item.isItalic = isItalic
+        item.textAlignRaw = textAlignRaw
+        item.textColorHex = textColorHex
+        item.fillColorHex = fillColorHex
+        item.shapeKindRaw = shapeKindRaw
+        item.frameTitle = frameTitle
+    }
+
+    /// Re-create a deleted item, preserving its id so references stay stable.
+    func makeItem() -> BoardItem {
+        let item = BoardItem(
+            kind: BoardItemKind(rawValue: kindRaw) ?? .note,
+            x: x, y: y, width: width, height: height, zIndex: zIndex
+        )
+        item.id = id
+        apply(to: item)
+        return item
+    }
+}

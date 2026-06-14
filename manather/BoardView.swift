@@ -9,6 +9,7 @@
 
 import SwiftUI
 import SwiftData
+import AppKit
 
 struct BoardView: View {
     @Bindable var board: Board
@@ -36,11 +37,36 @@ struct BoardView: View {
         liveAssets.filter { !$0.isTrash && ($0.assetType == .image || $0.assetType == .gif) }
     }
 
+    private var selectedItem: BoardItem? {
+        guard let id = vm.selectedItemID else { return nil }
+        return board.items.first { $0.id == id }
+    }
+
     var body: some View {
         ZStack(alignment: .topLeading) {
             // The canvas (dot grid + pan/zoom + items). Fills the whole screen.
-            BoardCanvasView(board: board, vm: vm, assetByID: assetByID)
-                .ignoresSafeArea()
+            BoardCanvasView(
+                board: board,
+                vm: vm,
+                assetByID: assetByID,
+                onItemInteractionBegan: { pushUndo() }
+            )
+            .ignoresSafeArea()
+
+            // Floating action bar above the selected element.
+            if let item = selectedItem {
+                BoardSelectionToolbar(
+                    isLocked: item.isLocked,
+                    canCopy: item.kind == .image,
+                    onDuplicate: duplicateSelected,
+                    onCopy: copySelected,
+                    onBringForward: bringSelectedForward,
+                    onSendBackward: sendSelectedBackward,
+                    onToggleLock: toggleSelectedLock,
+                    onDelete: deleteSelected
+                )
+                .position(selectionToolbarPosition(for: item))
+            }
 
             // Top bar floats over the canvas.
             VStack(spacing: 0) {
@@ -49,7 +75,7 @@ struct BoardView: View {
             }
 
             // Left tool palette.
-            BoardToolbar(vm: vm)
+            BoardToolbar(vm: vm, onUndo: undo, onRedo: redo)
                 .padding(.leading, 16)
                 .padding(.top, 70)
         }
@@ -114,6 +140,140 @@ struct BoardView: View {
             if resolved == nil {
                 modelContext.delete(item)
             }
+        }
+    }
+
+    // MARK: - Selection actions
+
+    private func selectionToolbarPosition(for item: BoardItem) -> CGPoint {
+        let zoom = vm.zoom
+        let pan = vm.pan
+        let centerX = (CGFloat(item.x) + CGFloat(item.width) / 2) * zoom + pan.width
+        let topY = CGFloat(item.y) * zoom + pan.height
+        let y = max(96, topY - 26)
+        let maxX = max(150, vm.viewportSize.width - 150)
+        let x = min(max(centerX, 150), maxX)
+        return CGPoint(x: x, y: y)
+    }
+
+    private func duplicateSelected() {
+        guard let item = selectedItem else { return }
+        pushUndo()
+        let baseZ = board.items.map { $0.zIndex }.max() ?? 0
+        let copy = BoardItem(
+            kind: item.kind,
+            x: item.x + 24,
+            y: item.y + 24,
+            width: item.width,
+            height: item.height,
+            zIndex: baseZ + 1,
+            assetID: item.assetID,
+            text: item.text,
+            fillColorHex: item.fillColorHex,
+            shapeKind: item.shapeKindRaw == nil ? nil : item.shapeKind,
+            frameTitle: item.frameTitle
+        )
+        copy.rotation = item.rotation
+        copy.fontName = item.fontName
+        copy.fontSize = item.fontSize
+        copy.isBold = item.isBold
+        copy.isItalic = item.isItalic
+        copy.textAlignRaw = item.textAlignRaw
+        copy.textColorHex = item.textColorHex
+        modelContext.insert(copy)
+        copy.board = board
+        vm.selectedItemID = copy.id
+    }
+
+    private func copySelected() {
+        guard let item = selectedItem, item.kind == .image,
+              let aid = item.assetID, let asset = assetByID[aid],
+              !asset.relativeFilePath.isEmpty else { return }
+        let url = FileManagerHelper.absolutePath(for: asset.relativeFilePath)
+        guard let image = NSImage(contentsOf: url) else { return }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.writeObjects([image])
+    }
+
+    private func bringSelectedForward() {
+        guard let item = selectedItem else { return }
+        pushUndo()
+        let maxZ = board.items.map { $0.zIndex }.max() ?? 0
+        item.zIndex = maxZ + 1
+    }
+
+    private func sendSelectedBackward() {
+        guard let item = selectedItem else { return }
+        pushUndo()
+        let minZ = board.items.map { $0.zIndex }.min() ?? 0
+        item.zIndex = minZ - 1
+    }
+
+    private func toggleSelectedLock() {
+        guard let item = selectedItem else { return }
+        pushUndo()
+        item.isLocked.toggle()
+    }
+
+    private func deleteSelected() {
+        guard let item = selectedItem else { return }
+        pushUndo()
+        modelContext.delete(item)
+        vm.selectedItemID = nil
+    }
+
+    // MARK: - Undo / redo (snapshot-based, see spec §6.4)
+
+    private func currentSnapshot() -> [BoardItemSnapshot] {
+        board.items.map { BoardItemSnapshot($0) }
+    }
+
+    private func pushUndo() {
+        vm.undoStack.append(currentSnapshot())
+        if vm.undoStack.count > BoardViewModel.maxHistory {
+            vm.undoStack.removeFirst()
+        }
+        vm.redoStack.removeAll()
+    }
+
+    private func undo() {
+        guard let snapshot = vm.undoStack.popLast() else { return }
+        vm.redoStack.append(currentSnapshot())
+        applySnapshot(snapshot)
+    }
+
+    private func redo() {
+        guard let snapshot = vm.redoStack.popLast() else { return }
+        vm.undoStack.append(currentSnapshot())
+        applySnapshot(snapshot)
+    }
+
+    /// Reconcile the board's items to match a snapshot: update existing items,
+    /// delete extras, and re-create any that were removed.
+    private func applySnapshot(_ snapshot: [BoardItemSnapshot]) {
+        let byID = Dictionary(board.items.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        let snapshotIDs = Set(snapshot.map { $0.id })
+
+        // Remove items that aren't in the snapshot.
+        for item in board.items where !snapshotIDs.contains(item.id) {
+            modelContext.delete(item)
+        }
+
+        // Update existing items or re-create missing ones.
+        for state in snapshot {
+            if let item = byID[state.id] {
+                state.apply(to: item)
+            } else {
+                let item = state.makeItem()
+                modelContext.insert(item)
+                item.board = board
+            }
+        }
+
+        // Keep selection only if it still exists.
+        if let id = vm.selectedItemID, !snapshotIDs.contains(id) {
+            vm.selectedItemID = nil
         }
     }
 
