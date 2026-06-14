@@ -87,8 +87,10 @@ struct BoardCanvasView: View {
                     },
                     onCommit: {}
                 )
+                .transition(.scale(scale: 0.92).combined(with: .opacity))
             }
         }
+        .animation(ManatherTheme.uiMotion, value: board.items.count)
         .onAppear {
             viewSize = geo.size
             vm.viewportSize = geo.size

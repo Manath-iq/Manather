@@ -20,6 +20,7 @@ struct BoardView: View {
     @Query private var allAssets: [AssetItem]
     @FocusState private var isTitleFocused: Bool
     @State private var vm: BoardViewModel
+    @State private var keyMonitor: Any?
 
     init(board: Board, onClose: @escaping () -> Void) {
         self._board = Bindable(board)
@@ -102,7 +103,67 @@ struct BoardView: View {
         }
         .background(KeyEventDismiss { close() })
         .animation(ManatherTheme.uiMotion, value: vm.showLibraryPanel)
-        .onAppear { pruneDanglingItems() }
+        .onAppear {
+            pruneDanglingItems()
+            installKeyMonitor()
+        }
+        .onDisappear { removeKeyMonitor() }
+    }
+
+    // MARK: - Keyboard shortcuts
+
+    /// A local key monitor handles board shortcuts. It deliberately ignores keys
+    /// while a text field is editing, so typing in notes / titles still works.
+    private func installKeyMonitor() {
+        guard keyMonitor == nil else { return }
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            let responder = event.window?.firstResponder
+            if responder is NSTextView || responder is NSText {
+                return event // a text field is focused — don't steal keys
+            }
+
+            let hasCommand = event.modifierFlags.contains(.command)
+            let hasShift = event.modifierFlags.contains(.shift)
+            let noModifiers = event.modifierFlags.intersection([.command, .option, .control]).isEmpty
+            let key = event.charactersIgnoringModifiers?.lowercased() ?? ""
+
+            // Undo / redo
+            if hasCommand && key == "z" {
+                if hasShift { redo() } else { undo() }
+                return nil
+            }
+
+            // Delete selected
+            if event.keyCode == 51 || event.keyCode == 117 {
+                if vm.selectedItemID != nil {
+                    deleteSelected()
+                    return nil
+                }
+                return event
+            }
+
+            // Tool shortcuts (no modifiers)
+            if noModifiers {
+                switch key {
+                case "v": vm.tool = .select; return nil
+                case "r": vm.tool = .addShape(.rectangle); return nil
+                case "e": vm.tool = .addShape(.ellipse); return nil
+                case "y": vm.tool = .addShape(.triangle); return nil
+                case "l": vm.tool = .addShape(.line); return nil
+                case "a": vm.tool = .addShape(.arrow); return nil
+                case "b": vm.tool = .addShape(.elbowArrow); return nil
+                default: break
+                }
+            }
+            return event
+        }
+    }
+
+    private func removeKeyMonitor() {
+        if let keyMonitor {
+            NSEvent.removeMonitor(keyMonitor)
+            self.keyMonitor = nil
+        }
     }
 
     private func close() {
