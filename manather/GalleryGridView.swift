@@ -55,7 +55,6 @@ struct GalleryGridView: View {
     @AppStorage("isDarkMode") private var isDarkMode = false
     @State private var selectedTab: MainTab = .library
     @State private var activeCollectionFilter: String? = nil
-    @State private var activeSpaceFilter: String? = nil
     @State private var activeColorFilter: BaseColor? = nil
     @State private var showSettingsPopover = false
     @State private var sortOrder: SortOrder = .mostRecent
@@ -65,9 +64,6 @@ struct GalleryGridView: View {
     @State private var showDeleteConfirmation = false
 
     @State private var contextTarget: ContextTarget?
-
-    // When set, the boards list for this project is shown as a full-screen layer.
-    @State private var boardsProjectName: String?
 
     // Boards tab: all boards the user created (across projects).
     @Query(sort: \Board.dateModified, order: .reverse) private var allBoards: [Board]
@@ -88,16 +84,13 @@ struct GalleryGridView: View {
     private var allCollections: [String] {
         Array(Set(assets.filter { !$0.isDeleted && !$0.isTrash }.compactMap { $0.collectionName })).sorted()
     }
-    private var allSpaces: [String] {
-        Array(Set(assets.filter { !$0.isDeleted && !$0.isTrash }.compactMap { $0.spaceName })).sorted()
-    }
 
     private var categoryAssets: [AssetItem] {
         switch selectedCategory {
         case .all:
             return assets.filter { !$0.isTrash }
         case .unsorted:
-            return assets.filter { !$0.isTrash && $0.collectionName == nil && $0.spaceName == nil }
+            return assets.filter { !$0.isTrash && $0.collectionName == nil }
         case .trash:
             return assets.filter { $0.isTrash }
         }
@@ -108,10 +101,6 @@ struct GalleryGridView: View {
 
         if let collectionFilter = activeCollectionFilter {
             items = items.filter { $0.collectionName == collectionFilter }
-        }
-
-        if let spaceFilter = activeSpaceFilter {
-            items = items.filter { $0.spaceName == spaceFilter }
         }
 
         if let colorFilter = activeColorFilter {
@@ -225,17 +214,6 @@ struct GalleryGridView: View {
             // Custom right-click context menu (dark panel + dimmed backdrop)
             if let target = contextTarget {
                 contextMenuOverlay(target)
-            }
-
-            // Boards layer for a project (list of boards → canvas)
-            if let projectName = boardsProjectName {
-                BoardListView(projectName: projectName) {
-                    withAnimation(ManatherTheme.overlayMotion) {
-                        boardsProjectName = nil
-                    }
-                }
-                .transition(.scale(scale: 0.96).combined(with: .opacity))
-                .zIndex(10)
             }
 
             // A board opened from the Boards tab.
@@ -731,7 +709,7 @@ struct GalleryGridView: View {
 
     private var filterBadgeBar: some View {
         Group {
-            if activeCollectionFilter != nil || activeSpaceFilter != nil || activeColorFilter != nil {
+            if activeCollectionFilter != nil || activeColorFilter != nil {
                 HStack(spacing: 8) {
                     Text("Filters:")
                         .font(.system(size: 11, weight: .bold))
@@ -740,12 +718,6 @@ struct GalleryGridView: View {
                     if let col = activeCollectionFilter {
                         filterBadge(text: "Collection: \(col)") {
                             activeCollectionFilter = nil
-                        }
-                    }
-
-                    if let sp = activeSpaceFilter {
-                        filterBadge(text: "Project: \(sp)") {
-                            activeSpaceFilter = nil
                         }
                     }
 
@@ -991,46 +963,6 @@ struct GalleryGridView: View {
         }
     }
 
-    private var spacesGrid: some View {
-        let spaces = Dictionary(grouping: assets.filter { !$0.isDeleted && !$0.isTrash }) { $0.spaceName ?? "Unassigned" }
-        let columns = [GridItem(.adaptive(minimum: 150, maximum: 200), spacing: 20)]
-
-        return ScrollView {
-            LazyVGrid(columns: columns, spacing: 20) {
-                ForEach(spaces.keys.sorted(), id: \.self) { name in
-                    let items = spaces[name] ?? []
-                    Button {
-                        activeSpaceFilter = name == "Unassigned" ? nil : name
-                        withAnimation {
-                            selectedTab = .library
-                        }
-                    } label: {
-                        spaceCard(title: name, count: items.count, items: items)
-                            .hoverLift()
-                    }
-                    .buttonStyle(.plain)
-                    .contextMenu {
-                        if name != "Unassigned" {
-                            Button {
-                                withAnimation(ManatherTheme.overlayMotion) {
-                                    boardsProjectName = name
-                                }
-                            } label: {
-                                Label("Boards", systemImage: "rectangle.3.group")
-                            }
-                            Button {
-                                ContextPackExporter.export(projectName: name, assets: items)
-                            } label: {
-                                Label("Export Context Pack", systemImage: "shippingbox.and.arrow.backward")
-                            }
-                        }
-                    }
-                }
-            }
-            .padding(24)
-        }
-    }
-
     private func folderCard(title: String, count: Int, items: [AssetItem]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             ZStack {
@@ -1073,68 +1005,6 @@ struct GalleryGridView: View {
                     .lineLimit(1)
 
                 Text("\(count) saves")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(isDarkMode ? Color.white.opacity(0.5) : Color.secondary)
-            }
-            .padding(.horizontal, 4)
-        }
-        .padding(10)
-        .background(isDarkMode ? Color.white.opacity(0.03) : Color.white.opacity(0.4))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(isDarkMode ? Color.white.opacity(0.05) : Color.black.opacity(0.05), lineWidth: 1)
-        )
-    }
-
-    private func spaceCard(title: String, count: Int, items: [AssetItem]) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(isDarkMode ? Color.white.opacity(0.04) : Color.black.opacity(0.02))
-                    .frame(height: 120)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(isDarkMode ? Color.white.opacity(0.1) : Color.black.opacity(0.08), lineWidth: 1)
-                    )
-
-                HStack(spacing: -12) {
-                    ForEach(Array(items.prefix(3).enumerated()), id: \.offset) { index, item in
-                        if !item.relativeFilePath.isEmpty, item.assetType != .codeSnippet {
-                            CachedImageView(relativePath: item.relativeFilePath, maxSize: 100)
-                                .frame(width: 60, height: 60)
-                                .clipShape(Circle())
-                                .overlay(Circle().stroke(isDarkMode ? Color.black : Color.white, lineWidth: 1.5))
-                                .shadow(color: .black.opacity(0.12), radius: 4, x: 0, y: 2)
-                                .zIndex(Double(3 - index))
-                        } else {
-                            Image(systemName: item.assetType.iconName)
-                                .font(.system(size: 16))
-                                .foregroundStyle(.white)
-                                .frame(width: 44, height: 44)
-                                .background(ManatherTheme.accent)
-                                .clipShape(Circle())
-                                .overlay(Circle().stroke(isDarkMode ? Color.black : Color.white, lineWidth: 1.5))
-                                .zIndex(Double(3 - index))
-                        }
-                    }
-
-                    if items.isEmpty {
-                        Image(systemName: "square.grid.3x3.square")
-                            .font(.system(size: 36, weight: .light))
-                            .foregroundStyle(ManatherTheme.accent.opacity(0.8))
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(isDarkMode ? Color.white : Color.primary)
-                    .lineLimit(1)
-
-                Text("\(count) items")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(isDarkMode ? Color.white.opacity(0.5) : Color.secondary)
             }
@@ -1270,7 +1140,7 @@ struct GalleryGridView: View {
                 VStack(alignment: .leading, spacing: 18) {
                 // Collection stack cards (only on "All", no filters/search)
                 if selectedCategory == .all && activeCollectionFilter == nil
-                    && activeSpaceFilter == nil && searchText.isEmpty && !allCollections.isEmpty {
+                    && searchText.isEmpty && !allCollections.isEmpty {
                     collectionStackRow
                 }
 
