@@ -13,6 +13,7 @@ import AppKit
 struct BoardCanvasView: View {
     @Bindable var board: Board
     @Bindable var vm: BoardViewModel
+    let assetByID: [UUID: AssetItem]
 
     // Gesture baselines (captured on gesture start).
     @State private var panStart: CGSize?
@@ -43,18 +44,32 @@ struct BoardCanvasView: View {
             .contentShape(Rectangle())
             .gesture(panGesture)
             .gesture(magnifyGesture)
+            .onTapGesture {
+                vm.selectedItemID = nil
+            }
 
-            // Item layer (empty for now). Items will be placed in canvas
-            // coordinates and transformed by the camera in later phases.
-            Color.clear
-                .allowsHitTesting(false)
+            // Item layer — each item computes its own screen rect from the camera.
+            ForEach(board.items.sorted { $0.zIndex < $1.zIndex }, id: \.id) { item in
+                BoardItemView(
+                    item: item,
+                    asset: item.assetID.flatMap { assetByID[$0] },
+                    zoom: zoom,
+                    pan: pan,
+                    isSelected: vm.selectedItemID == item.id,
+                    isInteractive: vm.tool == .select,
+                    onSelect: { vm.selectedItemID = item.id },
+                    onCommit: {}
+                )
+            }
         }
         .onAppear {
             viewSize = geo.size
+            vm.viewportSize = geo.size
             installScrollMonitor()
         }
         .onChange(of: geo.size) { _, newValue in
             viewSize = newValue
+            vm.viewportSize = newValue
         }
         .onDisappear {
             removeScrollMonitor()

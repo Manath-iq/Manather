@@ -2,9 +2,9 @@
 //  BoardView.swift
 //  manather
 //
-//  Root screen of a single board: a top bar (back + editable title) over the
-//  dark canvas. Phase 1 ships an empty canvas; the canvas mechanics (grid,
-//  pan/zoom, items, toolbars) arrive in later phases — see SPACE_BOARD_SPEC.md §9.
+//  Root screen of a single board: top bar (back + editable title), the canvas,
+//  the left tool palette and the right Library panel. Images can be added from
+//  the library and moved/resized on the canvas — see SPACE_BOARD_SPEC.md §9.
 //
 
 import SwiftUI
@@ -15,6 +15,7 @@ struct BoardView: View {
     let onClose: () -> Void
 
     @Environment(\.modelContext) private var modelContext
+    @Query private var allAssets: [AssetItem]
     @FocusState private var isTitleFocused: Bool
     @State private var vm: BoardViewModel
 
@@ -24,24 +25,96 @@ struct BoardView: View {
         self._vm = State(initialValue: BoardViewModel(board: board))
     }
 
+    // Live assets, used both to resolve image items and to feed the Library panel.
+    private var liveAssets: [AssetItem] {
+        allAssets.filter { !$0.isDeleted }
+    }
+    private var assetByID: [UUID: AssetItem] {
+        Dictionary(liveAssets.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+    }
+    private var imageAssets: [AssetItem] {
+        liveAssets.filter { !$0.isTrash && ($0.assetType == .image || $0.assetType == .gif) }
+    }
+
     var body: some View {
-        ZStack {
-            // The canvas (dot grid + pan/zoom). Fills the whole screen; the top
-            // bar floats over it.
-            BoardCanvasView(board: board, vm: vm)
+        ZStack(alignment: .topLeading) {
+            // The canvas (dot grid + pan/zoom + items). Fills the whole screen.
+            BoardCanvasView(board: board, vm: vm, assetByID: assetByID)
                 .ignoresSafeArea()
 
+            // Top bar floats over the canvas.
             VStack(spacing: 0) {
                 topBar
                 Spacer()
             }
+
+            // Left tool palette.
+            BoardToolbar(vm: vm)
+                .padding(.leading, 16)
+                .padding(.top, 70)
+        }
+        .overlay(alignment: .trailing) {
+            if vm.showLibraryPanel {
+                BoardLibraryPanel(
+                    assets: imageAssets,
+                    onAdd: { addImages($0) },
+                    onClose: { vm.showLibraryPanel = false }
+                )
+                .frame(maxHeight: .infinity)
+                .ignoresSafeArea()
+                .transition(.move(edge: .trailing))
+            }
         }
         .background(KeyEventDismiss { close() })
+        .animation(ManatherTheme.uiMotion, value: vm.showLibraryPanel)
+        .onAppear { pruneDanglingItems() }
     }
 
     private func close() {
         vm.persist(to: board)
         onClose()
+    }
+
+    // MARK: - Items
+
+    /// Drop the chosen library images onto the canvas near the viewport center,
+    /// cascaded slightly so they don't land exactly on top of each other.
+    private func addImages(_ assets: [AssetItem]) {
+        guard !assets.isEmpty else { return }
+        let center = vm.viewportCenterInCanvas()
+        let baseZ = board.items.map { $0.zIndex }.max() ?? 0
+
+        for (index, asset) in assets.enumerated() {
+            let width: Double = 240
+            let ar = asset.aspectRatio > 0 ? Double(asset.aspectRatio) : 1
+            let height = width / ar
+            let shift = Double(index) * 28
+            let item = BoardItem(
+                kind: .image,
+                x: Double(center.x) - width / 2 + shift,
+                y: Double(center.y) - height / 2 + shift,
+                width: width,
+                height: height,
+                zIndex: baseZ + 1 + index,
+                assetID: asset.id
+            )
+            modelContext.insert(item)
+            item.board = board
+        }
+
+        vm.showLibraryPanel = false
+        vm.tool = .select
+    }
+
+    /// Owner decision §12.4: if a board image's asset no longer exists in the
+    /// library, just remove it from the board (no "unavailable" placeholder).
+    private func pruneDanglingItems() {
+        for item in board.items where item.kind == .image {
+            let resolved = item.assetID.flatMap { assetByID[$0] }
+            if resolved == nil {
+                modelContext.delete(item)
+            }
+        }
     }
 
     // MARK: - Top bar

@@ -9,6 +9,13 @@
 
 import SwiftUI
 
+/// Which tool the canvas is currently in. Grows in later phases (note, text,
+/// shapes, frame); Phase 3 uses select + addImage.
+enum BoardTool: Equatable {
+    case select
+    case addImage
+}
+
 @Observable
 final class BoardViewModel {
     // Canvas camera. `pan` is the screen-space offset of the canvas origin;
@@ -16,6 +23,14 @@ final class BoardViewModel {
     // as:  screen = p * zoom + pan.
     var zoom: CGFloat
     var pan: CGSize
+
+    // Interaction state.
+    var tool: BoardTool = .select
+    var selectedItemID: UUID?
+    var showLibraryPanel: Bool = false
+    /// Current size of the canvas viewport (kept in sync by the canvas) so we
+    /// can place new items near the center of what the user is looking at.
+    var viewportSize: CGSize = .zero
 
     static let minZoom: CGFloat = 0.1
     static let maxZoom: CGFloat = 4.0
@@ -44,6 +59,15 @@ final class BoardViewModel {
         pan = CGSize(
             width: anchor.x - canvasX * newZoom,
             height: anchor.y - canvasY * newZoom
+        )
+    }
+
+    /// The canvas point currently at the center of the viewport.
+    func viewportCenterInCanvas() -> CGPoint {
+        let screenCenter = CGPoint(x: viewportSize.width / 2, y: viewportSize.height / 2)
+        return CGPoint(
+            x: (screenCenter.x - pan.width) / zoom,
+            y: (screenCenter.y - pan.height) / zoom
         )
     }
 
