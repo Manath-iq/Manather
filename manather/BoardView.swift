@@ -66,8 +66,8 @@ struct BoardView: View {
             // Floating action bar above the selected element.
             if let item = selectedItem {
                 BoardSelectionToolbar(
-                    isLocked: item.isLocked,
-                    canCopy: item.kind == .image,
+                    item: item,
+                    onBeginChange: { pushUndo() },
                     onDuplicate: duplicateSelected,
                     onCopy: copySelected,
                     onBringForward: bringSelectedForward,

@@ -13,6 +13,9 @@ struct BoardTextToolbar: View {
     @Bindable var item: BoardItem
     let onBeginChange: () -> Void   // snapshot for undo before a formatting change
 
+    @State private var showTextColor = false
+    @State private var showFillColor = false
+
     private var fontSizeBinding: Binding<Double> {
         Binding(
             get: { item.fontSize ?? 16 },
@@ -127,15 +130,8 @@ struct BoardTextToolbar: View {
     }
 
     private var textColorMenu: some View {
-        Menu {
-            ForEach(BoardPalette.texts, id: \.self) { hex in
-                Button {
-                    onBeginChange()
-                    item.textColorHex = hex
-                } label: {
-                    Text(hex)
-                }
-            }
+        Button {
+            showTextColor = true
         } label: {
             HStack(spacing: 3) {
                 Text("A")
@@ -147,22 +143,22 @@ struct BoardTextToolbar: View {
             }
             .frame(width: 30, height: 24)
             .background(RoundedRectangle(cornerRadius: 6).fill(Color.white.opacity(0.08)))
+            .contentShape(Rectangle())
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
+        .buttonStyle(.microAnimated)
+        .help("Text color")
+        .popover(isPresented: $showTextColor, arrowEdge: .bottom) {
+            BoardColorSwatches(colors: BoardPalette.texts, selected: item.textColorHex) { hex in
+                onBeginChange()
+                item.textColorHex = hex
+                showTextColor = false
+            }
+        }
     }
 
     private var fillColorMenu: some View {
-        Menu {
-            ForEach(BoardPalette.fills, id: \.self) { hex in
-                Button {
-                    onBeginChange()
-                    item.fillColorHex = hex
-                } label: {
-                    Text(hex)
-                }
-            }
+        Button {
+            showFillColor = true
         } label: {
             HStack(spacing: 3) {
                 Circle()
@@ -175,9 +171,16 @@ struct BoardTextToolbar: View {
             }
             .frame(width: 34, height: 24)
             .background(RoundedRectangle(cornerRadius: 6).fill(Color.white.opacity(0.08)))
+            .contentShape(Rectangle())
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
+        .buttonStyle(.microAnimated)
+        .help("Note color")
+        .popover(isPresented: $showFillColor, arrowEdge: .bottom) {
+            BoardColorSwatches(colors: BoardPalette.fills, selected: item.fillColorHex) { hex in
+                onBeginChange()
+                item.fillColorHex = hex
+                showFillColor = false
+            }
+        }
     }
 }
