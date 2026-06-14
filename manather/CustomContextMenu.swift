@@ -85,7 +85,6 @@ struct AssetMenuItem: Identifiable {
 struct AssetContextMenuView: View {
     let asset: AssetItem
     let collections: [String]
-    let projects: [String]
     let isTrash: Bool
 
     let onOpen: () -> Void
@@ -99,7 +98,7 @@ struct AssetContextMenuView: View {
     let onDeletePermanently: () -> Void
     let onDismiss: () -> Void
 
-    private enum Page { case main, collections, projects }
+    private enum Page { case main, collections }
     @State private var page: Page = .main
 
     var body: some View {
@@ -107,7 +106,6 @@ struct AssetContextMenuView: View {
             switch page {
             case .main:        mainPage
             case .collections: assignPage(title: "Add to Collection", options: collections) { asset.collectionName = $0 }
-            case .projects:    assignPage(title: "Add to Project", options: projects) { asset.spaceName = $0 }
             }
         }
         .padding(6)
@@ -154,9 +152,6 @@ struct AssetContextMenuView: View {
             divider
             row(.init(title: "Add to Collection", systemImage: "folder.badge.plus", showsChevron: true) {
                 page = .collections
-            })
-            row(.init(title: "Add to Project", systemImage: "square.stack.3d.up", showsChevron: true) {
-                page = .projects
             })
             divider
             row(.init(title: "Duplicate", systemImage: "plus.square.on.square") {

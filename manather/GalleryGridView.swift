@@ -295,6 +295,9 @@ struct GalleryGridView: View {
             }
             // Backfill palette data so color filtering works for older imports
             ColorIndexer.shared.backfill(assets: assets.filter { !$0.isTrash })
+            // Projects were merged into Collections — fold any old project tag
+            // into a collection of the same name (one-time, idempotent).
+            mergeProjectsIntoCollections()
         }
         .confirmationDialog(
             "Are you sure you want to permanently delete \"\(assetToDelete?.title ?? "")\"?",
@@ -818,6 +821,15 @@ struct GalleryGridView: View {
                             .hoverLift()
                     }
                     .buttonStyle(.plain)
+                    .contextMenu {
+                        if name != "Unassigned" {
+                            Button {
+                                ContextPackExporter.export(projectName: name, assets: items)
+                            } label: {
+                                Label("Export Context Pack", systemImage: "shippingbox.and.arrow.backward")
+                            }
+                        }
+                    }
                 }
             }
             .padding(24)
@@ -937,6 +949,17 @@ struct GalleryGridView: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(isDarkMode ? Color.white.opacity(0.05) : Color.black.opacity(0.05), lineWidth: 1)
         )
+    }
+
+    /// Projects were merged into Collections: move any old project tag into a
+    /// collection of the same name, then clear the project field. Idempotent.
+    private func mergeProjectsIntoCollections() {
+        for asset in assets where asset.spaceName != nil {
+            if (asset.collectionName ?? "").isEmpty {
+                asset.collectionName = asset.spaceName
+            }
+            asset.spaceName = nil
+        }
     }
 
     private func duplicateBoard(_ board: Board) {
@@ -1553,7 +1576,6 @@ struct GalleryGridView: View {
                 AssetContextMenuView(
                     asset: target.asset,
                     collections: allCollections,
-                    projects: allSpaces,
                     isTrash: isTrashView,
                     onOpen: { selectedAsset = target.asset },
                     onCopyPrompt: { copyPrompt(target.asset) },

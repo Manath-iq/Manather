@@ -192,17 +192,6 @@ struct InspectorView: View {
                 )
                 .padding(.bottom, 16)
 
-                // Project — chip with ×
-                ChipAssignSection(
-                    icon: "square.stack.3d.up",
-                    title: "Project",
-                    value: Binding(
-                        get: { asset.spaceName },
-                        set: { asset.spaceName = $0 }
-                    )
-                )
-                .padding(.bottom, 16)
-
                 // Tags
                 TagsSection(asset: asset)
                     .padding(.bottom, 16)
