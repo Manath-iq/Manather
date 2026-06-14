@@ -25,8 +25,13 @@ struct BoardItemView: View {
     let onEndEditing: () -> Void
     let onCommit: () -> Void   // called when a move/resize finishes (persist hook)
 
-    @State private var moveStart: CGPoint?
-    @State private var resizeStart: CGRect?
+    // Live drag/resize happen in local @State only (no per-tick database writes,
+    // which is what made dragging stutter). The final geometry is committed to
+    // the model once, on gesture end.
+    @State private var isDragging = false
+    @State private var dragTranslation: CGSize = .zero
+    @State private var resizingCorner: Corner?
+    @State private var resizeTranslation: CGSize = .zero
     @FocusState private var isTextFocused: Bool
 
     private var textBinding: Binding<String> {
@@ -38,15 +43,45 @@ struct BoardItemView: View {
 
     private enum Corner { case topLeft, topRight, bottomLeft, bottomRight }
 
-    // Screen geometry derived from the camera. Item geometry is stored as
-    // Double (canvas space); the camera is CGFloat — convert as we project.
+    private static let minSize: CGFloat = 30
+
+    // The item's canvas-space rect, with any in-progress resize applied live.
+    private var canvasRect: CGRect {
+        var x = CGFloat(item.x)
+        var y = CGFloat(item.y)
+        var w = CGFloat(item.width)
+        var h = CGFloat(item.height)
+
+        if let corner = resizingCorner {
+            let dx = resizeTranslation.width / zoom
+            let dy = resizeTranslation.height / zoom
+            switch corner {
+            case .bottomRight: w += dx;        h += dy
+            case .bottomLeft:  x += dx; w -= dx; h += dy
+            case .topRight:    y += dy; w += dx; h -= dy
+            case .topLeft:     x += dx; y += dy; w -= dx; h -= dy
+            }
+            // Respect a minimum size without shifting the opposite edge.
+            if w < Self.minSize {
+                if corner == .topLeft || corner == .bottomLeft { x -= Self.minSize - w }
+                w = Self.minSize
+            }
+            if h < Self.minSize {
+                if corner == .topLeft || corner == .topRight { y -= Self.minSize - h }
+                h = Self.minSize
+            }
+        }
+        return CGRect(x: x, y: y, width: w, height: h)
+    }
+
+    // Screen geometry derived from the camera + live drag offset.
     private var screenSize: CGSize {
-        CGSize(width: CGFloat(item.width) * zoom, height: CGFloat(item.height) * zoom)
+        CGSize(width: canvasRect.width * zoom, height: canvasRect.height * zoom)
     }
     private var screenCenter: CGPoint {
         CGPoint(
-            x: (CGFloat(item.x) + CGFloat(item.width) / 2) * zoom + pan.width,
-            y: (CGFloat(item.y) + CGFloat(item.height) / 2) * zoom + pan.height
+            x: canvasRect.midX * zoom + pan.width + dragTranslation.width,
+            y: canvasRect.midY * zoom + pan.height + dragTranslation.height
         )
     }
 
@@ -282,17 +317,23 @@ struct BoardItemView: View {
     private var moveGesture: some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
-                if moveStart == nil {
-                    moveStart = CGPoint(x: item.x, y: item.y)
+                if !isDragging {
+                    isDragging = true
                     onSelect()
                     if !item.isLocked { onBeginInteraction() }
                 }
-                guard let start = moveStart, !item.isLocked else { return }
-                item.x = Double(start.x) + Double(value.translation.width / zoom)
-                item.y = Double(start.y) + Double(value.translation.height / zoom)
+                guard !item.isLocked else { return }
+                dragTranslation = value.translation // visual only — no DB write
             }
-            .onEnded { _ in
-                moveStart = nil
+            .onEnded { value in
+                defer {
+                    dragTranslation = .zero
+                    isDragging = false
+                }
+                guard !item.isLocked else { return }
+                // Commit the final position to the model once.
+                item.x += Double(value.translation.width / zoom)
+                item.y += Double(value.translation.height / zoom)
                 onCommit()
             }
     }
@@ -300,32 +341,26 @@ struct BoardItemView: View {
     private func resizeGesture(_ corner: Corner) -> some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
-                if resizeStart == nil {
-                    resizeStart = CGRect(x: item.x, y: item.y, width: item.width, height: item.height)
+                if resizingCorner == nil {
+                    resizingCorner = corner
                     onSelect()
                     if !item.isLocked { onBeginInteraction() }
                 }
-                guard let s = resizeStart, !item.isLocked else { return }
-                let dx = value.translation.width / zoom
-                let dy = value.translation.height / zoom
-                let minSize: CGFloat = 30
-
-                var nx = s.minX, ny = s.minY, nw = s.width, nh = s.height
-                switch corner {
-                case .bottomRight:
-                    nw = s.width + dx; nh = s.height + dy
-                case .bottomLeft:
-                    nx = s.minX + dx; nw = s.width - dx; nh = s.height + dy
-                case .topRight:
-                    ny = s.minY + dy; nw = s.width + dx; nh = s.height - dy
-                case .topLeft:
-                    nx = s.minX + dx; ny = s.minY + dy; nw = s.width - dx; nh = s.height - dy
-                }
-                if nw >= minSize { item.x = Double(nx); item.width = Double(nw) }
-                if nh >= minSize { item.y = Double(ny); item.height = Double(nh) }
+                guard !item.isLocked else { return }
+                resizeTranslation = value.translation // visual only — no DB write
             }
             .onEnded { _ in
-                resizeStart = nil
+                defer {
+                    resizingCorner = nil
+                    resizeTranslation = .zero
+                }
+                guard !item.isLocked else { return }
+                // Commit the live rect (which already includes the resize) once.
+                let rect = canvasRect
+                item.x = Double(rect.minX)
+                item.y = Double(rect.minY)
+                item.width = Double(rect.width)
+                item.height = Double(rect.height)
                 onCommit()
             }
     }
