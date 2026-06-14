@@ -49,9 +49,17 @@ struct BoardView: View {
                 board: board,
                 vm: vm,
                 assetByID: assetByID,
-                onItemInteractionBegan: { pushUndo() }
+                onItemInteractionBegan: { pushUndo() },
+                onBackgroundTap: { handleCanvasTap(at: $0) }
             )
             .ignoresSafeArea()
+
+            // Text/note formatting bar (top center) while a textual item is selected.
+            if let item = selectedItem, item.kind == .note || item.kind == .text {
+                BoardTextToolbar(item: item, onBeginChange: { pushUndo() })
+                    .padding(.top, 64)
+                    .frame(maxWidth: .infinity, alignment: .center)
+            }
 
             // Floating action bar above the selected element.
             if let item = selectedItem {
@@ -129,6 +137,39 @@ struct BoardView: View {
         }
 
         vm.showLibraryPanel = false
+        vm.tool = .select
+    }
+
+    /// Create a note or text item where the user clicked (with the add tool).
+    private func handleCanvasTap(at screenPoint: CGPoint) {
+        let kind: BoardItemKind = vm.tool == .addText ? .text : .note
+        pushUndo()
+        let zoom = vm.zoom
+        let pan = vm.pan
+        let cx = Double((screenPoint.x - pan.width) / zoom)
+        let cy = Double((screenPoint.y - pan.height) / zoom)
+        let width: Double = kind == .note ? 170 : 200
+        let height: Double = kind == .note ? 140 : 60
+        let baseZ = board.items.map { $0.zIndex }.max() ?? 0
+
+        let item = BoardItem(
+            kind: kind,
+            x: cx - width / 2,
+            y: cy - height / 2,
+            width: width,
+            height: height,
+            zIndex: baseZ + 1,
+            text: "",
+            fillColorHex: kind == .note ? BoardPalette.defaultNoteFill : nil
+        )
+        item.fontSize = kind == .note ? 16 : 20
+        item.textColorHex = kind == .note ? BoardPalette.defaultNoteText : BoardPalette.defaultText
+        item.textAlignRaw = TextAlign.leading.rawValue
+        modelContext.insert(item)
+        item.board = board
+
+        vm.selectedItemID = item.id
+        vm.editingItemID = item.id
         vm.tool = .select
     }
 

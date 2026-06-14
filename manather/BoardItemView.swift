@@ -16,12 +16,20 @@ struct BoardItemView: View {
     let pan: CGSize
     let isSelected: Bool
     let isInteractive: Bool   // true when the Select tool is active
+    let isEditing: Bool       // text/note being typed into
     let onSelect: () -> Void
     let onBeginInteraction: () -> Void  // snapshot for undo before a move/resize
+    let onBeginEditing: () -> Void
+    let onEndEditing: () -> Void
     let onCommit: () -> Void   // called when a move/resize finishes (persist hook)
 
     @State private var moveStart: CGPoint?
     @State private var resizeStart: CGRect?
+    @FocusState private var isTextFocused: Bool
+
+    private var textBinding: Binding<String> {
+        Binding(get: { item.text ?? "" }, set: { item.text = $0 })
+    }
 
     private enum Corner { case topLeft, topRight, bottomLeft, bottomRight }
 
@@ -37,14 +45,17 @@ struct BoardItemView: View {
         )
     }
 
+    private var isTextual: Bool { item.kind == .note || item.kind == .text }
+
     var body: some View {
         ZStack {
             content
                 .frame(width: screenSize.width, height: screenSize.height)
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .shadow(color: .black.opacity(0.30), radius: 8, y: 4)
+                .shadow(color: .black.opacity(item.kind == .text ? 0 : 0.30), radius: 8, y: 4)
                 .contentShape(Rectangle())
-                .gesture(moveGesture, including: isInteractive ? .all : .subviews)
+                .gesture(moveGesture, including: (isInteractive && !isEditing) ? .all : .subviews)
+                .modifier(DoubleTapToEdit(enabled: isTextual && isInteractive, action: onBeginEditing))
 
             if isSelected {
                 selectionOverlay
@@ -52,6 +63,15 @@ struct BoardItemView: View {
         }
         .frame(width: screenSize.width, height: screenSize.height)
         .position(screenCenter)
+        .onChange(of: isEditing) { _, editing in
+            isTextFocused = editing
+        }
+        .onChange(of: isTextFocused) { _, focused in
+            if !focused && isEditing { onEndEditing() }
+        }
+        .onAppear {
+            if isEditing { isTextFocused = true }
+        }
     }
 
     // MARK: - Content per kind
@@ -68,10 +88,77 @@ struct BoardItemView: View {
             } else {
                 placeholder
             }
+        case .note:
+            textBody(isNote: true)
+        case .text:
+            textBody(isNote: false)
         default:
-            // Other kinds land in later phases.
+            // Shapes / frames land in later phases.
             placeholder
         }
+    }
+
+    // MARK: - Note / text rendering
+
+    private var textFont: Font {
+        let size = CGFloat(item.fontSize ?? 16) * zoom
+        var f = Font.system(size: max(4, size), weight: item.isBold ? .bold : .regular)
+        if item.isItalic { f = f.italic() }
+        return f
+    }
+
+    private var swiftAlignment: TextAlignment {
+        switch item.textAlign {
+        case .center: return .center
+        case .trailing: return .trailing
+        case .leading: return .leading
+        }
+    }
+
+    private var frameAlignment: Alignment {
+        switch item.textAlign {
+        case .center: return .top
+        case .trailing: return .topTrailing
+        case .leading: return .topLeading
+        }
+    }
+
+    @ViewBuilder
+    private func textBody(isNote: Bool) -> some View {
+        let textColor = Color(boardHex: item.textColorHex ?? (isNote ? BoardPalette.defaultNoteText : BoardPalette.defaultText))
+        let pad = max(4, 10 * zoom)
+
+        ZStack {
+            if isNote {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color(boardHex: item.fillColorHex ?? BoardPalette.defaultNoteFill))
+            }
+
+            Group {
+                if isEditing {
+                    TextEditor(text: textBinding)
+                        .focused($isTextFocused)
+                        .font(textFont)
+                        .foregroundStyle(textColor)
+                        .multilineTextAlignment(swiftAlignment)
+                        .scrollContentBackground(.hidden)
+                        .background(Color.clear)
+                        .tint(ManatherTheme.accent)
+                } else {
+                    Text(displayText)
+                        .font(textFont)
+                        .foregroundStyle(item.text?.isEmpty == false ? textColor : textColor.opacity(0.4))
+                        .multilineTextAlignment(swiftAlignment)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: frameAlignment)
+                }
+            }
+            .padding(pad)
+        }
+    }
+
+    private var displayText: String {
+        if let t = item.text, !t.isEmpty { return t }
+        return item.kind == .note ? "Note" : "Text"
     }
 
     private var placeholder: some View {
@@ -169,5 +256,19 @@ struct BoardItemView: View {
                 resizeStart = nil
                 onCommit()
             }
+    }
+}
+
+/// Adds a double-click-to-edit gesture only for editable (note/text) items.
+private struct DoubleTapToEdit: ViewModifier {
+    let enabled: Bool
+    let action: () -> Void
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content.onTapGesture(count: 2, perform: action)
+        } else {
+            content
+        }
     }
 }

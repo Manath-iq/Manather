@@ -15,6 +15,7 @@ struct BoardCanvasView: View {
     @Bindable var vm: BoardViewModel
     let assetByID: [UUID: AssetItem]
     let onItemInteractionBegan: () -> Void
+    let onBackgroundTap: (CGPoint) -> Void   // screen point of a tap on empty canvas
 
     // Gesture baselines (captured on gesture start).
     @State private var panStart: CGSize?
@@ -45,9 +46,18 @@ struct BoardCanvasView: View {
             .contentShape(Rectangle())
             .gesture(panGesture)
             .gesture(magnifyGesture)
-            .onTapGesture {
-                vm.selectedItemID = nil
-            }
+            .gesture(
+                SpatialTapGesture()
+                    .onEnded { value in
+                        switch vm.tool {
+                        case .addNote, .addText:
+                            onBackgroundTap(value.location)
+                        default:
+                            vm.selectedItemID = nil
+                            vm.editingItemID = nil
+                        }
+                    }
+            )
 
             // Item layer — each item computes its own screen rect from the camera.
             ForEach(board.items.sorted { $0.zIndex < $1.zIndex }, id: \.id) { item in
@@ -58,8 +68,16 @@ struct BoardCanvasView: View {
                     pan: pan,
                     isSelected: vm.selectedItemID == item.id,
                     isInteractive: vm.tool == .select,
+                    isEditing: vm.editingItemID == item.id,
                     onSelect: { vm.selectedItemID = item.id },
                     onBeginInteraction: onItemInteractionBegan,
+                    onBeginEditing: {
+                        vm.selectedItemID = item.id
+                        vm.editingItemID = item.id
+                    },
+                    onEndEditing: {
+                        if vm.editingItemID == item.id { vm.editingItemID = nil }
+                    },
                     onCommit: {}
                 )
             }

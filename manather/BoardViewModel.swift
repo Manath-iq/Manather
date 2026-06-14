@@ -9,11 +9,33 @@
 
 import SwiftUI
 
-/// Which tool the canvas is currently in. Grows in later phases (note, text,
-/// shapes, frame); Phase 3 uses select + addImage.
+/// Which tool the canvas is currently in. Grows in later phases (shapes, frame);
+/// Phase 5 adds note + text on top of select / addImage.
 enum BoardTool: Equatable {
     case select
     case addImage
+    case addNote
+    case addText
+}
+
+/// Colors used by the board text/note toolbar.
+enum BoardPalette {
+    /// Note / shape fill swatches (yellow sticky is the default).
+    static let fills = ["#FCEFA8", "#FFD3B6", "#FFAAA5", "#D5F5E3", "#AED9E0", "#C9C7F5", "#FFFFFF", "#2B2B2B"]
+    /// Text color swatches.
+    static let texts = ["#1A1A1A", "#FFFFFF", "#E74C3C", "#27AE60", "#2980B9", "#8E44AD", "#F39C12"]
+
+    static let defaultNoteFill = "#FCEFA8"
+    static let defaultNoteText = "#1A1A1A"
+    static let defaultText = "#FFFFFF"
+}
+
+extension Color {
+    /// Build a Color from a "#RRGGBB" string, falling back to a neutral gray.
+    init(boardHex hex: String) {
+        let rgb = ColorIndex.parseHex(hex) ?? (r: 0.5, g: 0.5, b: 0.5)
+        self = Color(red: rgb.r, green: rgb.g, blue: rgb.b)
+    }
 }
 
 @Observable
@@ -27,6 +49,7 @@ final class BoardViewModel {
     // Interaction state.
     var tool: BoardTool = .select
     var selectedItemID: UUID?
+    var editingItemID: UUID?           // note/text currently being typed into
     var showLibraryPanel: Bool = false
     /// Current size of the canvas viewport (kept in sync by the canvas) so we
     /// can place new items near the center of what the user is looking at.

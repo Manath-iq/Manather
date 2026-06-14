@@ -33,6 +33,22 @@ struct BoardToolbar: View {
                 vm.showLibraryPanel = true
             }
 
+            toolButton(
+                symbol: "note.text",
+                help: "Add note (click the canvas)",
+                isActive: vm.tool == .addNote
+            ) {
+                vm.tool = .addNote
+            }
+
+            toolButton(
+                symbol: "textformat",
+                help: "Add text (click the canvas)",
+                isActive: vm.tool == .addText
+            ) {
+                vm.tool = .addText
+            }
+
             divider
 
             toolButton(
