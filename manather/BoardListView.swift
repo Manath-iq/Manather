@@ -269,7 +269,7 @@ struct BoardListView: View {
 
 // MARK: - New board sheet
 
-private struct NewBoardSheet: View {
+struct NewBoardSheet: View {
     let projectName: String
     let onCreate: (Board) -> Void
 

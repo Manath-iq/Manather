@@ -19,7 +19,8 @@ enum SidebarCategory: String, CaseIterable, Identifiable {
 enum MainTab: String, CaseIterable, Identifiable {
     case library = "Library"
     case collections = "Collections"
-    case spaces = "Projects" // data field is still `spaceName` — UI label only
+    case spaces = "Boards" // third tab now shows the user's boards collection
+                           // (the Projects grid code is parked for later reuse)
 
     var id: String { rawValue }
 }
@@ -67,6 +68,11 @@ struct GalleryGridView: View {
 
     // When set, the boards list for this project is shown as a full-screen layer.
     @State private var boardsProjectName: String?
+
+    // Boards tab: all boards the user created (across projects).
+    @Query(sort: \Board.dateModified, order: .reverse) private var allBoards: [Board]
+    @State private var openBoard: Board?
+    @State private var showNewBoardSheet = false
 
     @State private var isDropTargeted = false
     @State private var showWebLinkSheet = false
@@ -193,7 +199,7 @@ struct GalleryGridView: View {
                         collectionsGrid
                             .transition(.opacity.combined(with: .offset(y: 10)))
                     } else {
-                        spacesGrid
+                        boardsGrid
                             .transition(.opacity.combined(with: .offset(y: 10)))
                     }
                 }
@@ -231,6 +237,17 @@ struct GalleryGridView: View {
                 .transition(.scale(scale: 0.96).combined(with: .opacity))
                 .zIndex(10)
             }
+
+            // A board opened from the Boards tab.
+            if let board = openBoard {
+                BoardView(board: board) {
+                    withAnimation(ManatherTheme.overlayMotion) {
+                        openBoard = nil
+                    }
+                }
+                .transition(.scale(scale: 0.96).combined(with: .opacity))
+                .zIndex(11)
+            }
         }
         .coordinateSpace(name: "gallerySpace")
         .focusEffectDisabled()
@@ -265,6 +282,11 @@ struct GalleryGridView: View {
         }
         .sheet(isPresented: $showSkillSheet) {
             AddSkillSheet()
+        }
+        .sheet(isPresented: $showNewBoardSheet) {
+            NewBoardSheet(projectName: "") { newBoard in
+                withAnimation(ManatherTheme.overlayMotion) { openBoard = newBoard }
+            }
         }
         .onAppear {
             let pendingLinks = assets.filter { $0.assetType == .webLink && $0.relativeFilePath.isEmpty }
@@ -515,7 +537,7 @@ struct GalleryGridView: View {
                 Image(systemName: "folder.fill")
                     .font(.system(size: 11, weight: .semibold))
             case .spaces:
-                Image(systemName: "square.stack.3d.up.fill")
+                Image(systemName: "rectangle.3.group.fill")
                     .font(.system(size: 11, weight: .semibold))
             }
             Text(tab.rawValue)
@@ -799,6 +821,150 @@ struct GalleryGridView: View {
                 }
             }
             .padding(24)
+        }
+    }
+
+    // MARK: - Boards tab
+
+    private var boardsGrid: some View {
+        let columns = [GridItem(.adaptive(minimum: 200, maximum: 260), spacing: 20)]
+
+        return ScrollView {
+            LazyVGrid(columns: columns, spacing: 20) {
+                Button {
+                    showNewBoardSheet = true
+                } label: {
+                    newBoardCard
+                        .hoverLift()
+                }
+                .buttonStyle(.plain)
+
+                ForEach(allBoards) { board in
+                    Button {
+                        withAnimation(ManatherTheme.overlayMotion) { openBoard = board }
+                    } label: {
+                        boardCard(board)
+                            .hoverLift()
+                    }
+                    .buttonStyle(.plain)
+                    .contextMenu {
+                        Button {
+                            duplicateBoard(board)
+                        } label: {
+                            Label("Duplicate", systemImage: "plus.square.on.square")
+                        }
+                        Divider()
+                        Button(role: .destructive) {
+                            if openBoard?.id == board.id { openBoard = nil }
+                            modelContext.delete(board)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
+                }
+            }
+            .padding(24)
+        }
+    }
+
+    private var newBoardCard: some View {
+        VStack(spacing: 10) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(
+                        isDarkMode ? Color.white.opacity(0.18) : Color.black.opacity(0.15),
+                        style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])
+                    )
+                    .frame(height: 120)
+                Image(systemName: "plus")
+                    .font(.system(size: 28, weight: .light))
+                    .foregroundStyle(ManatherTheme.accent)
+            }
+            .frame(maxWidth: .infinity)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("New board")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(isDarkMode ? Color.white : Color.primary)
+                Text("Start a mood-board canvas")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(isDarkMode ? Color.white.opacity(0.5) : Color.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 4)
+        }
+        .padding(10)
+        .background(isDarkMode ? Color.white.opacity(0.03) : Color.white.opacity(0.4))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(isDarkMode ? Color.white.opacity(0.05) : Color.black.opacity(0.05), lineWidth: 1)
+        )
+    }
+
+    private func boardCard(_ board: Board) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(ManatherTheme.viewerBackground)
+                    .frame(height: 120)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                    )
+                Image(systemName: "square.dashed")
+                    .font(.system(size: 28, weight: .light))
+                    .foregroundStyle(.white.opacity(0.20))
+            }
+            .frame(maxWidth: .infinity)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(board.title.isEmpty ? "Untitled board" : board.title)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(isDarkMode ? Color.white : Color.primary)
+                    .lineLimit(1)
+
+                Text("\(board.items.count) item\(board.items.count == 1 ? "" : "s")")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(isDarkMode ? Color.white.opacity(0.5) : Color.secondary)
+            }
+            .padding(.horizontal, 4)
+        }
+        .padding(10)
+        .background(isDarkMode ? Color.white.opacity(0.03) : Color.white.opacity(0.4))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(isDarkMode ? Color.white.opacity(0.05) : Color.black.opacity(0.05), lineWidth: 1)
+        )
+    }
+
+    private func duplicateBoard(_ board: Board) {
+        let copy = Board(
+            title: board.title + " copy",
+            details: board.details,
+            projectName: board.projectName,
+            cameraX: board.cameraX,
+            cameraY: board.cameraY,
+            zoom: board.zoom
+        )
+        modelContext.insert(copy)
+        for item in board.items {
+            let newItem = BoardItem(
+                kind: item.kind,
+                x: item.x,
+                y: item.y,
+                width: item.width,
+                height: item.height,
+                zIndex: item.zIndex,
+                assetID: item.assetID,
+                text: item.text,
+                fillColorHex: item.fillColorHex,
+                shapeKind: item.shapeKindRaw == nil ? nil : item.shapeKind,
+                frameTitle: item.frameTitle
+            )
+            newItem.board = copy
+            modelContext.insert(newItem)
         }
     }
 
