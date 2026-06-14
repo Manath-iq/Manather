@@ -17,10 +17,16 @@ enum BoardTool: Equatable {
     case addNote
     case addText
     case addShape(ShapeKind)
+    case addFrame
 
     var isShape: Bool {
         if case .addShape = self { return true }
         return false
+    }
+
+    /// Tools whose items are created by dragging a bounding box on the canvas.
+    var createsByDrag: Bool {
+        isShape || self == .addFrame
     }
 }
 

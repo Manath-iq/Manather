@@ -62,6 +62,15 @@ struct BoardToolbar: View {
                     vm.showShapeFlyout.toggle()
                 }
 
+                toolButton(
+                    symbol: "rectangle.dashed",
+                    help: "Frame (drag on the canvas)",
+                    isActive: vm.tool == .addFrame
+                ) {
+                    vm.tool = .addFrame
+                    vm.showShapeFlyout = false
+                }
+
                 divider
 
                 toolButton(

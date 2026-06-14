@@ -30,6 +30,9 @@ struct BoardItemView: View {
     private var textBinding: Binding<String> {
         Binding(get: { item.text ?? "" }, set: { item.text = $0 })
     }
+    private var frameTitleBinding: Binding<String> {
+        Binding(get: { item.frameTitle ?? "" }, set: { item.frameTitle = $0 })
+    }
 
     private enum Corner { case topLeft, topRight, bottomLeft, bottomRight }
 
@@ -46,16 +49,17 @@ struct BoardItemView: View {
     }
 
     private var isTextual: Bool { item.kind == .note || item.kind == .text }
+    private var isEditable: Bool { item.kind == .note || item.kind == .text || item.kind == .frame }
 
     var body: some View {
         ZStack {
             content
                 .frame(width: screenSize.width, height: screenSize.height)
                 .modifier(ConditionalRoundedClip(radius: 8, enabled: item.kind == .image || item.kind == .note))
-                .shadow(color: .black.opacity(item.kind == .text || item.kind == .shape ? 0 : 0.30), radius: 8, y: 4)
+                .shadow(color: .black.opacity(item.kind == .image || item.kind == .note ? 0.30 : 0), radius: 8, y: 4)
                 .contentShape(Rectangle())
                 .gesture(moveGesture, including: (isInteractive && !isEditing) ? .all : .subviews)
-                .modifier(DoubleTapToEdit(enabled: isTextual && isInteractive, action: onBeginEditing))
+                .modifier(DoubleTapToEdit(enabled: isEditable && isInteractive, action: onBeginEditing))
 
             if isSelected {
                 selectionOverlay
@@ -94,9 +98,43 @@ struct BoardItemView: View {
             textBody(isNote: false)
         case .shape:
             shapeBody
-        default:
-            // Frames land in a later phase.
-            placeholder
+        case .frame:
+            frameBody
+        }
+    }
+
+    // MARK: - Frame
+
+    @ViewBuilder
+    private var frameBody: some View {
+        let titleSize = max(8, 12 * zoom)
+        let lineWidth = max(1, 1.5 * zoom)
+        let radius = max(2, 6 * zoom)
+
+        ZStack(alignment: .topLeading) {
+            RoundedRectangle(cornerRadius: radius, style: .continuous)
+                .fill(Color.white.opacity(0.02))
+            RoundedRectangle(cornerRadius: radius, style: .continuous)
+                .stroke(
+                    Color.white.opacity(0.35),
+                    style: StrokeStyle(lineWidth: lineWidth, dash: [6 * zoom, 4 * zoom])
+                )
+
+            Group {
+                if isEditing {
+                    TextField("Frame", text: frameTitleBinding)
+                        .textFieldStyle(.plain)
+                        .focused($isTextFocused)
+                        .font(.system(size: titleSize, weight: .semibold))
+                        .foregroundStyle(.white)
+                } else {
+                    Text(item.frameTitle?.isEmpty == false ? item.frameTitle! : "Frame")
+                        .font(.system(size: titleSize, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.75))
+                }
+            }
+            .padding(.horizontal, max(3, 8 * zoom))
+            .padding(.vertical, max(2, 5 * zoom))
         }
     }
 

@@ -151,8 +151,8 @@ struct BoardCanvasView: View {
     private var backgroundDragGesture: some Gesture {
         DragGesture(minimumDistance: 1)
             .onChanged { value in
-                if vm.tool.isShape {
-                    updateDraftShape(value)
+                if vm.tool.createsByDrag {
+                    updateDraft(value)
                 } else {
                     if panStart == nil { panStart = vm.pan }
                     let base = panStart ?? vm.pan
@@ -163,8 +163,8 @@ struct BoardCanvasView: View {
                 }
             }
             .onEnded { _ in
-                if vm.tool.isShape {
-                    finishDraftShape()
+                if vm.tool.createsByDrag {
+                    finishDraft()
                 } else {
                     panStart = nil
                     vm.persist(to: board)
@@ -172,22 +172,12 @@ struct BoardCanvasView: View {
             }
     }
 
-    private func updateDraftShape(_ value: DragGesture.Value) {
-        guard case .addShape(let kind) = vm.tool else { return }
+    private func updateDraft(_ value: DragGesture.Value) {
         if draftItem == nil {
             onItemInteractionBegan() // undo snapshot before adding
             draftStart = canvasPoint(value.startLocation)
-            let baseZ = board.items.map { $0.zIndex }.max() ?? 0
-            let isStroke = kind == .line || kind == .arrow || kind == .elbowArrow
-            let item = BoardItem(
-                kind: .shape,
-                x: Double(draftStart.x),
-                y: Double(draftStart.y),
-                width: 1, height: 1,
-                zIndex: baseZ + 1,
-                shapeKind: kind
-            )
-            item.fillColorHex = isStroke ? BoardPalette.defaultStroke : BoardPalette.defaultShapeFill
+            let item = makeDraftItem(at: draftStart)
+            guard let item else { return }
             modelContext.insert(item)
             item.board = board
             draftItem = item
@@ -199,7 +189,38 @@ struct BoardCanvasView: View {
         draftItem?.height = Double(max(1, abs(cur.y - draftStart.y)))
     }
 
-    private func finishDraftShape() {
+    /// Build the item being rubber-band-drawn for the current tool.
+    private func makeDraftItem(at start: CGPoint) -> BoardItem? {
+        switch vm.tool {
+        case .addShape(let kind):
+            let baseZ = board.items.map { $0.zIndex }.max() ?? 0
+            let isStroke = kind == .line || kind == .arrow || kind == .elbowArrow
+            let item = BoardItem(
+                kind: .shape,
+                x: Double(start.x), y: Double(start.y),
+                width: 1, height: 1,
+                zIndex: baseZ + 1,
+                shapeKind: kind
+            )
+            item.fillColorHex = isStroke ? BoardPalette.defaultStroke : BoardPalette.defaultShapeFill
+            return item
+        case .addFrame:
+            // Frames sit behind everything else so they act as containers.
+            let minZ = board.items.map { $0.zIndex }.min() ?? 0
+            let item = BoardItem(
+                kind: .frame,
+                x: Double(start.x), y: Double(start.y),
+                width: 1, height: 1,
+                zIndex: minZ - 1
+            )
+            item.frameTitle = "Frame"
+            return item
+        default:
+            return nil
+        }
+    }
+
+    private func finishDraft() {
         if let item = draftItem {
             if item.width < 6 && item.height < 6 {
                 modelContext.delete(item) // a click, not a drag — discard
