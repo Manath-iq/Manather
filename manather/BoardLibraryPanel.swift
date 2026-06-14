@@ -24,7 +24,9 @@ struct BoardLibraryPanel: View {
         return pool.filter { $0.title.lowercased().contains(q) || $0.tags.contains { $0.lowercased().contains(q) } }
     }
 
-    private let columns = [GridItem(.adaptive(minimum: 78, maximum: 110), spacing: 8)]
+    // Fixed 3-column grid so each cell width is predictable and the selection
+    // border lines up with the cell (no overflow into neighbours).
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 3)
 
     var body: some View {
         VStack(spacing: 0) {
@@ -128,28 +130,31 @@ struct BoardLibraryPanel: View {
 
     private func thumbnail(_ asset: AssetItem) -> some View {
         let isSelected = selectedIDs.contains(asset.id)
-        return ZStack(alignment: .topTrailing) {
-            CachedImageView(relativePath: asset.relativeFilePath, maxSize: 200)
-                .frame(width: 90, height: 90)
-                .clipped()
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(isSelected ? ManatherTheme.accent : Color.white.opacity(0.08),
-                                lineWidth: isSelected ? 2 : 1)
-                )
-
-            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                .font(.system(size: 14))
-                .foregroundStyle(isSelected ? ManatherTheme.accent : .white.opacity(0.55))
-                .background(Circle().fill(.black.opacity(0.35)))
-                .padding(5)
-        }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            if isSelected { selectedIDs.remove(asset.id) }
-            else { selectedIDs.insert(asset.id) }
-        }
+        return CachedImageView(relativePath: asset.relativeFilePath, maxSize: 200)
+            .frame(maxWidth: .infinity)
+            .aspectRatio(1, contentMode: .fit)   // square cell sized to the column
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.white.opacity(0.05))
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(isSelected ? ManatherTheme.accent : Color.white.opacity(0.08),
+                            lineWidth: isSelected ? 2 : 1)
+            )
+            .overlay(alignment: .topTrailing) {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 14))
+                    .foregroundStyle(isSelected ? ManatherTheme.accent : .white.opacity(0.55))
+                    .background(Circle().fill(.black.opacity(0.35)))
+                    .padding(5)
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                if isSelected { selectedIDs.remove(asset.id) }
+                else { selectedIDs.insert(asset.id) }
+            }
     }
 
     private var footer: some View {
