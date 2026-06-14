@@ -8,6 +8,7 @@
 //
 
 import SwiftUI
+import SwiftData
 import AppKit
 
 struct BoardCanvasView: View {
@@ -17,11 +18,17 @@ struct BoardCanvasView: View {
     let onItemInteractionBegan: () -> Void
     let onBackgroundTap: (CGPoint) -> Void   // screen point of a tap on empty canvas
 
+    @Environment(\.modelContext) private var modelContext
+
     // Gesture baselines (captured on gesture start).
     @State private var panStart: CGSize?
     @State private var zoomStart: CGFloat?
     @State private var scrollMonitor: Any?
     @State private var viewSize: CGSize = .zero
+
+    // Rubber-band shape being drawn (shape tools).
+    @State private var draftItem: BoardItem?
+    @State private var draftStart: CGPoint = .zero
 
     private let baseGridSpacing: CGFloat = 24
 
@@ -44,7 +51,7 @@ struct BoardCanvasView: View {
             }
             .background(ManatherTheme.viewerBackground)
             .contentShape(Rectangle())
-            .gesture(panGesture)
+            .gesture(backgroundDragGesture)
             .gesture(magnifyGesture)
             .gesture(
                 SpatialTapGesture()
@@ -131,20 +138,77 @@ struct BoardCanvasView: View {
 
     // MARK: - Gestures
 
-    private var panGesture: some Gesture {
+    /// Screen point → canvas point using the current camera.
+    private func canvasPoint(_ screen: CGPoint) -> CGPoint {
+        CGPoint(
+            x: (screen.x - vm.pan.width) / vm.zoom,
+            y: (screen.y - vm.pan.height) / vm.zoom
+        )
+    }
+
+    /// One drag on empty canvas: pans, or rubber-band-draws a shape when a
+    /// shape tool is active.
+    private var backgroundDragGesture: some Gesture {
         DragGesture(minimumDistance: 1)
             .onChanged { value in
-                if panStart == nil { panStart = vm.pan }
-                let base = panStart ?? vm.pan
-                vm.pan = CGSize(
-                    width: base.width + value.translation.width,
-                    height: base.height + value.translation.height
-                )
+                if vm.tool.isShape {
+                    updateDraftShape(value)
+                } else {
+                    if panStart == nil { panStart = vm.pan }
+                    let base = panStart ?? vm.pan
+                    vm.pan = CGSize(
+                        width: base.width + value.translation.width,
+                        height: base.height + value.translation.height
+                    )
+                }
             }
             .onEnded { _ in
-                panStart = nil
-                vm.persist(to: board)
+                if vm.tool.isShape {
+                    finishDraftShape()
+                } else {
+                    panStart = nil
+                    vm.persist(to: board)
+                }
             }
+    }
+
+    private func updateDraftShape(_ value: DragGesture.Value) {
+        guard case .addShape(let kind) = vm.tool else { return }
+        if draftItem == nil {
+            onItemInteractionBegan() // undo snapshot before adding
+            draftStart = canvasPoint(value.startLocation)
+            let baseZ = board.items.map { $0.zIndex }.max() ?? 0
+            let isStroke = kind == .line || kind == .arrow || kind == .elbowArrow
+            let item = BoardItem(
+                kind: .shape,
+                x: Double(draftStart.x),
+                y: Double(draftStart.y),
+                width: 1, height: 1,
+                zIndex: baseZ + 1,
+                shapeKind: kind
+            )
+            item.fillColorHex = isStroke ? BoardPalette.defaultStroke : BoardPalette.defaultShapeFill
+            modelContext.insert(item)
+            item.board = board
+            draftItem = item
+        }
+        let cur = canvasPoint(value.location)
+        draftItem?.x = Double(min(draftStart.x, cur.x))
+        draftItem?.y = Double(min(draftStart.y, cur.y))
+        draftItem?.width = Double(max(1, abs(cur.x - draftStart.x)))
+        draftItem?.height = Double(max(1, abs(cur.y - draftStart.y)))
+    }
+
+    private func finishDraftShape() {
+        if let item = draftItem {
+            if item.width < 6 && item.height < 6 {
+                modelContext.delete(item) // a click, not a drag — discard
+            } else {
+                vm.selectedItemID = item.id
+            }
+            draftItem = nil
+        }
+        vm.tool = .select
     }
 
     private var magnifyGesture: some Gesture {

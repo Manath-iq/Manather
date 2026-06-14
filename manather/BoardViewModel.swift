@@ -16,6 +16,12 @@ enum BoardTool: Equatable {
     case addImage
     case addNote
     case addText
+    case addShape(ShapeKind)
+
+    var isShape: Bool {
+        if case .addShape = self { return true }
+        return false
+    }
 }
 
 /// Colors used by the board text/note toolbar.
@@ -28,6 +34,8 @@ enum BoardPalette {
     static let defaultNoteFill = "#FCEFA8"
     static let defaultNoteText = "#1A1A1A"
     static let defaultText = "#FFFFFF"
+    static let defaultShapeFill = "#C9C7F5"
+    static let defaultStroke = "#FFFFFF"
 }
 
 extension Color {
@@ -51,6 +59,7 @@ final class BoardViewModel {
     var selectedItemID: UUID?
     var editingItemID: UUID?           // note/text currently being typed into
     var showLibraryPanel: Bool = false
+    var showShapeFlyout: Bool = false
     /// Current size of the canvas viewport (kept in sync by the canvas) so we
     /// can place new items near the center of what the user is looking at.
     var viewportSize: CGSize = .zero

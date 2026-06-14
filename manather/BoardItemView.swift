@@ -51,8 +51,8 @@ struct BoardItemView: View {
         ZStack {
             content
                 .frame(width: screenSize.width, height: screenSize.height)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .shadow(color: .black.opacity(item.kind == .text ? 0 : 0.30), radius: 8, y: 4)
+                .modifier(ConditionalRoundedClip(radius: 8, enabled: item.kind == .image || item.kind == .note))
+                .shadow(color: .black.opacity(item.kind == .text || item.kind == .shape ? 0 : 0.30), radius: 8, y: 4)
                 .contentShape(Rectangle())
                 .gesture(moveGesture, including: (isInteractive && !isEditing) ? .all : .subviews)
                 .modifier(DoubleTapToEdit(enabled: isTextual && isInteractive, action: onBeginEditing))
@@ -92,9 +92,37 @@ struct BoardItemView: View {
             textBody(isNote: true)
         case .text:
             textBody(isNote: false)
+        case .shape:
+            shapeBody
         default:
-            // Shapes / frames land in later phases.
+            // Frames land in a later phase.
             placeholder
+        }
+    }
+
+    // MARK: - Shapes
+
+    @ViewBuilder
+    private var shapeBody: some View {
+        let isStroke = item.shapeKind == .line || item.shapeKind == .arrow || item.shapeKind == .elbowArrow
+        let hex = item.fillColorHex ?? (isStroke ? BoardPalette.defaultStroke : BoardPalette.defaultShapeFill)
+        let color = Color(boardHex: hex)
+        let lineWidth = max(1.5, 3 * zoom)
+        let strokeStyle = StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round)
+
+        switch item.shapeKind {
+        case .rectangle:
+            RoundedRectangle(cornerRadius: 2, style: .continuous).fill(color)
+        case .ellipse:
+            Ellipse().fill(color)
+        case .triangle:
+            TriangleShape().fill(color)
+        case .line:
+            LineShape().stroke(color, style: strokeStyle)
+        case .arrow:
+            ArrowShape().stroke(color, style: strokeStyle)
+        case .elbowArrow:
+            ElbowArrowShape().stroke(color, style: strokeStyle)
         }
     }
 
@@ -271,4 +299,79 @@ private struct DoubleTapToEdit: ViewModifier {
             content
         }
     }
+}
+
+/// Rounds the corners only for items that should be clipped (image, note).
+private struct ConditionalRoundedClip: ViewModifier {
+    let radius: CGFloat
+    let enabled: Bool
+
+    func body(content: Content) -> some View {
+        if enabled {
+            content.clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
+        } else {
+            content
+        }
+    }
+}
+
+// MARK: - Shape geometry
+
+struct TriangleShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var p = Path()
+        p.move(to: CGPoint(x: rect.midX, y: rect.minY))
+        p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        p.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        p.closeSubpath()
+        return p
+    }
+}
+
+struct LineShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var p = Path()
+        p.move(to: CGPoint(x: rect.minX, y: rect.minY))
+        p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        return p
+    }
+}
+
+struct ArrowShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let start = CGPoint(x: rect.minX, y: rect.minY)
+        let end = CGPoint(x: rect.maxX, y: rect.maxY)
+        var p = Path()
+        p.move(to: start)
+        p.addLine(to: end)
+        addArrowHead(to: &p, from: start, to: end)
+        return p
+    }
+}
+
+struct ElbowArrowShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let start = CGPoint(x: rect.minX, y: rect.minY)
+        let elbow = CGPoint(x: rect.maxX, y: rect.minY)
+        let end = CGPoint(x: rect.maxX, y: rect.maxY)
+        var p = Path()
+        p.move(to: start)
+        p.addLine(to: elbow)
+        p.addLine(to: end)
+        addArrowHead(to: &p, from: elbow, to: end)
+        return p
+    }
+}
+
+/// Append a small arrowhead at `to`, pointing along the `from`→`to` direction.
+private func addArrowHead(to path: inout Path, from: CGPoint, to: CGPoint) {
+    let angle = atan2(to.y - from.y, to.x - from.x)
+    let length = max(8, min(22, hypot(to.x - from.x, to.y - from.y) * 0.25))
+    let spread = CGFloat.pi * 0.82
+    let p1 = CGPoint(x: to.x + cos(angle + spread) * length, y: to.y + sin(angle + spread) * length)
+    let p2 = CGPoint(x: to.x + cos(angle - spread) * length, y: to.y + sin(angle - spread) * length)
+    path.move(to: to)
+    path.addLine(to: p1)
+    path.move(to: to)
+    path.addLine(to: p2)
 }
