@@ -16,36 +16,39 @@ struct BoardView: View {
 
     @Environment(\.modelContext) private var modelContext
     @FocusState private var isTitleFocused: Bool
+    @State private var vm: BoardViewModel
+
+    init(board: Board, onClose: @escaping () -> Void) {
+        self._board = Bindable(board)
+        self.onClose = onClose
+        self._vm = State(initialValue: BoardViewModel(board: board))
+    }
 
     var body: some View {
         ZStack {
-            // Dark canvas backdrop (same charcoal as the asset viewer).
-            ManatherTheme.viewerBackground
+            // The canvas (dot grid + pan/zoom). Fills the whole screen; the top
+            // bar floats over it.
+            BoardCanvasView(board: board, vm: vm)
                 .ignoresSafeArea()
-
-            // Empty-canvas hint (placeholder until Phase 2 adds the dot grid).
-            VStack(spacing: 8) {
-                Image(systemName: "square.dashed")
-                    .font(.system(size: 40, weight: .light))
-                    .foregroundStyle(.white.opacity(0.18))
-                Text("Empty board")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.30))
-            }
 
             VStack(spacing: 0) {
                 topBar
                 Spacer()
             }
         }
-        .background(KeyEventDismiss { onClose() })
+        .background(KeyEventDismiss { close() })
+    }
+
+    private func close() {
+        vm.persist(to: board)
+        onClose()
     }
 
     // MARK: - Top bar
 
     private var topBar: some View {
         HStack(spacing: 12) {
-            Button(action: onClose) {
+            Button(action: close) {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.85))
