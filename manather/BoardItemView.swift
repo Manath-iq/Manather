@@ -55,20 +55,46 @@ struct BoardItemView: View {
         if let corner = resizingCorner {
             let dx = resizeTranslation.width / zoom
             let dy = resizeTranslation.height / zoom
-            switch corner {
-            case .bottomRight: w += dx;        h += dy
-            case .bottomLeft:  x += dx; w -= dx; h += dy
-            case .topRight:    y += dy; w += dx; h -= dy
-            case .topLeft:     x += dx; y += dy; w -= dx; h -= dy
-            }
-            // Respect a minimum size without shifting the opposite edge.
-            if w < Self.minSize {
-                if corner == .topLeft || corner == .bottomLeft { x -= Self.minSize - w }
-                w = Self.minSize
-            }
-            if h < Self.minSize {
-                if corner == .topLeft || corner == .topRight { y -= Self.minSize - h }
-                h = Self.minSize
+            let rightSide = corner == .bottomRight || corner == .topRight
+            let bottomSide = corner == .bottomRight || corner == .bottomLeft
+
+            if item.kind == .image, w > 0, h > 0 {
+                // Images resize proportionally so the frame always matches the
+                // picture's aspect ratio. The dragged corner leads on whichever
+                // axis you move more; the opposite corner stays anchored.
+                let assetRatio = asset?.aspectRatio ?? 0
+                let ratio = assetRatio > 0 ? assetRatio : (w / h)
+                var newW: CGFloat
+                var newH: CGFloat
+                if abs(dx) >= abs(dy) {
+                    newW = w + (rightSide ? dx : -dx)
+                    newH = newW / ratio
+                } else {
+                    newH = h + (bottomSide ? dy : -dy)
+                    newW = newH * ratio
+                }
+                if newW < Self.minSize { newW = Self.minSize; newH = newW / ratio }
+                if newH < Self.minSize { newH = Self.minSize; newW = newH * ratio }
+                if !rightSide { x = (x + w) - newW }
+                if !bottomSide { y = (y + h) - newH }
+                w = newW
+                h = newH
+            } else {
+                switch corner {
+                case .bottomRight: w += dx;        h += dy
+                case .bottomLeft:  x += dx; w -= dx; h += dy
+                case .topRight:    y += dy; w += dx; h -= dy
+                case .topLeft:     x += dx; y += dy; w -= dx; h -= dy
+                }
+                // Respect a minimum size without shifting the opposite edge.
+                if w < Self.minSize {
+                    if corner == .topLeft || corner == .bottomLeft { x -= Self.minSize - w }
+                    w = Self.minSize
+                }
+                if h < Self.minSize {
+                    if corner == .topLeft || corner == .topRight { y -= Self.minSize - h }
+                    h = Self.minSize
+                }
             }
         }
         return CGRect(x: x, y: y, width: w, height: h)
