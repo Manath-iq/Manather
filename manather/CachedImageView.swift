@@ -10,6 +10,9 @@ import SwiftUI
 struct CachedImageView: View {
     let relativePath: String
     let maxSize: CGFloat? // nil means load full image
+    /// How the image fills its frame. `.fit` (default) keeps the whole image
+    /// visible; `.fill` crops it to the frame — used for square collection tiles.
+    var contentMode: ContentMode = .fit
 
     @State private var image: NSImage?
     @State private var loadedPath: String? // which path the displayed image belongs to
@@ -22,8 +25,8 @@ struct CachedImageView: View {
             if let image = image {
                 Image(nsImage: image)
                     .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(maxWidth: .infinity)
+                    .aspectRatio(contentMode: contentMode)
+                    .frame(maxWidth: contentMode == .fit ? .infinity : nil)
             } else if hasFailed {
                 fallbackPlaceholder
             } else {

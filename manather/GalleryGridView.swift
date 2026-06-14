@@ -70,6 +70,12 @@ struct GalleryGridView: View {
     @State private var openBoard: Board?
     @State private var showNewBoardSheet = false
 
+    @Query(sort: \AssetCollection.dateAdded, order: .reverse) private var savedCollections: [AssetCollection]
+    @State private var showNewCollectionSheet = false
+    /// When set, the Collections tab shows this collection's contents in-place
+    /// (a dedicated browse screen) instead of the grid of collection folders.
+    @State private var openCollection: String? = nil
+
     @State private var isDropTargeted = false
     @State private var showWebLinkSheet = false
     @State private var showCodeSnippetSheet = false
@@ -83,6 +89,28 @@ struct GalleryGridView: View {
     // Computed once per render from the full asset list — passed into cards to avoid per-card @Query
     private var allCollections: [String] {
         Array(Set(assets.filter { !$0.isDeleted && !$0.isTrash }.compactMap { $0.collectionName })).sorted()
+    }
+
+    /// The canonical list of every collection: real `AssetCollection` objects
+    /// (including empty ones) plus any legacy names still living only on assets.
+    private var collectionNames: [String] {
+        Set(savedCollections.map(\.name)).union(allCollections).sorted()
+    }
+
+    /// Live assets belonging to `name` ("Unassigned" = saves not in any
+    /// collection), newest first.
+    private func assets(inCollection name: String) -> [AssetItem] {
+        let live = assets.filter { !$0.isDeleted && !$0.isTrash }
+        let items = name == "Unassigned"
+            ? live.filter { $0.collectionName == nil }
+            : live.filter { $0.collectionName == name }
+        return items.sorted { $0.dateAdded > $1.dateAdded }
+    }
+
+    /// Assets of the collection currently open in the Collections tab.
+    private var openCollectionAssets: [AssetItem] {
+        guard let name = openCollection else { return [] }
+        return assets(inCollection: name)
     }
 
     private var categoryAssets: [AssetItem] {
@@ -185,8 +213,14 @@ struct GalleryGridView: View {
                         }
                         .transition(.opacity.combined(with: .offset(y: 10)))
                     } else if selectedTab == .collections {
-                        collectionsGrid
-                            .transition(.opacity.combined(with: .offset(y: 10)))
+                        Group {
+                            if let name = openCollection {
+                                collectionDetailView(name)
+                            } else {
+                                collectionsGrid
+                            }
+                        }
+                        .transition(.opacity.combined(with: .offset(y: 10)))
                     } else {
                         boardsGrid
                             .transition(.opacity.combined(with: .offset(y: 10)))
@@ -205,7 +239,7 @@ struct GalleryGridView: View {
             if selectedAsset != nil {
                 AssetDetailView(
                     selectedAsset: $selectedAsset,
-                    assets: visibleAssets
+                    assets: openCollection != nil ? openCollectionAssets : visibleAssets
                 )
                 // Smooth zoom-in/out instead of a flat fade.
                 .transition(.scale(scale: 0.93).combined(with: .opacity))
@@ -228,6 +262,10 @@ struct GalleryGridView: View {
             }
         }
         .coordinateSpace(name: "gallerySpace")
+        .onChange(of: selectedTab) { _, _ in
+            // Leaving (or re-entering) the Collections tab returns to the folder list.
+            openCollection = nil
+        }
         .focusEffectDisabled()
         .overlay(
             // Drop target overlay
@@ -266,6 +304,9 @@ struct GalleryGridView: View {
                 withAnimation(ManatherTheme.overlayMotion) { openBoard = newBoard }
             }
         }
+        .sheet(isPresented: $showNewCollectionSheet) {
+            NewCollectionSheet(existingNames: collectionNames) { _ in }
+        }
         .onAppear {
             let pendingLinks = assets.filter { $0.assetType == .webLink && $0.relativeFilePath.isEmpty }
             for asset in pendingLinks {
@@ -276,6 +317,9 @@ struct GalleryGridView: View {
             // Projects were merged into Collections — fold any old project tag
             // into a collection of the same name (one-time, idempotent).
             mergeProjectsIntoCollections()
+            // Turn any collection names still living only on assets into real
+            // AssetCollection objects, so they can be managed like the rest.
+            seedCollectionsFromAssets()
         }
         .confirmationDialog(
             "Are you sure you want to permanently delete \"\(assetToDelete?.title ?? "")\"?",
@@ -356,16 +400,20 @@ struct GalleryGridView: View {
             .padding(.top, ManatherTheme.titleBarInset)
             .padding(.bottom, 14)
             
-            // Row 2: Tabs and Filters
-            HStack(alignment: .center) {
-                categoryTabs
-                
-                Spacer()
-                
-                controlCluster
+            // Row 2: Tabs and Filters — library-only. Categories (All / Unsorted /
+            // Trash) and the color/column/sort controls don't apply to Collections
+            // or Boards, so the whole row is hidden there.
+            if selectedTab == .library {
+                HStack(alignment: .center) {
+                    categoryTabs
+
+                    Spacer()
+
+                    controlCluster
+                }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 16)
             }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 16)
         }
     }
 
@@ -776,36 +824,197 @@ struct GalleryGridView: View {
     }
 
     private var collectionsGrid: some View {
-        let collections = Dictionary(grouping: assets.filter { !$0.isDeleted && !$0.isTrash }) { $0.collectionName ?? "Unassigned" }
-        let columns = [GridItem(.adaptive(minimum: 150, maximum: 200), spacing: 20)]
+        // Group live assets by their collection. The "__unassigned__" sentinel
+        // keeps loose (uncollected) assets out of the named buckets.
+        let grouped = Dictionary(grouping: assets.filter { !$0.isDeleted && !$0.isTrash }) {
+            $0.collectionName ?? "__unassigned__"
+        }
+        let names = collectionNames // real collections (incl. empty) + legacy names
+        let unassigned = grouped["__unassigned__"] ?? []
+        let columns = [GridItem(.adaptive(minimum: 184, maximum: 240), spacing: 22)]
 
         return ScrollView {
             LazyVGrid(columns: columns, spacing: 20) {
-                ForEach(collections.keys.sorted(), id: \.self) { name in
-                    let items = collections[name] ?? []
+                // Create a new (possibly empty) collection.
+                Button {
+                    showNewCollectionSheet = true
+                } label: {
+                    newCollectionCard
+                        .hoverLift()
+                }
+                .buttonStyle(.plain)
+
+                // Every real collection, including empty ones.
+                ForEach(names, id: \.self) { name in
+                    let items = grouped[name] ?? []
                     Button {
-                        activeCollectionFilter = name == "Unassigned" ? nil : name
-                        withAnimation {
-                            selectedTab = .library
-                        }
+                        withAnimation(ManatherTheme.uiMotion) { openCollection = name }
                     } label: {
-                        folderCard(title: name, count: items.count, items: items)
+                        CollectionFolderCard(title: name, count: items.count, items: items, isDarkMode: isDarkMode)
                             .hoverLift()
                     }
                     .buttonStyle(.plain)
                     .contextMenu {
-                        if name != "Unassigned" {
-                            Button {
-                                ContextPackExporter.export(projectName: name, assets: items)
-                            } label: {
-                                Label("Export Context Pack", systemImage: "shippingbox.and.arrow.backward")
-                            }
+                        Button {
+                            ContextPackExporter.export(projectName: name, assets: items)
+                        } label: {
+                            Label("Export Context Pack", systemImage: "shippingbox.and.arrow.backward")
+                        }
+                        Divider()
+                        Button(role: .destructive) {
+                            deleteCollection(name)
+                        } label: {
+                            Label("Delete Collection", systemImage: "trash")
                         }
                     }
+                }
+
+                // Loose saves that aren't in any collection (shown last, read-only).
+                if !unassigned.isEmpty {
+                    Button {
+                        withAnimation(ManatherTheme.uiMotion) { openCollection = "Unassigned" }
+                    } label: {
+                        CollectionFolderCard(title: "Unassigned", count: unassigned.count, items: unassigned, isDarkMode: isDarkMode)
+                            .hoverLift()
+                    }
+                    .buttonStyle(.plain)
                 }
             }
             .padding(24)
         }
+    }
+
+    /// Dashed "+" card that opens the new-collection sheet. Mirrors the "New
+    /// board" card so the two tabs feel the same.
+    private var newCollectionCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(
+                        isDarkMode ? Color.white.opacity(0.18) : Color.black.opacity(0.15),
+                        style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])
+                    )
+                    .frame(height: 150)
+                Image(systemName: "folder.badge.plus")
+                    .font(.system(size: 30, weight: .light))
+                    .foregroundStyle(ManatherTheme.accent)
+            }
+            .frame(maxWidth: .infinity)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("New collection")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(isDarkMode ? Color.white : Color.primary)
+                Text("Group saves together")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(isDarkMode ? Color.white.opacity(0.5) : Color.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 4)
+        }
+        .padding(12)
+        .background(isDarkMode ? Color.white.opacity(0.03) : Color.white.opacity(0.5))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(isDarkMode ? Color.white.opacity(0.05) : Color.black.opacity(0.05), lineWidth: 1)
+        )
+    }
+
+    // MARK: - Collection detail (browse inside one collection)
+
+    @ViewBuilder
+    private func collectionDetailView(_ name: String) -> some View {
+        let items = openCollectionAssets
+        let isUnassigned = name == "Unassigned"
+
+        VStack(spacing: 0) {
+            // Back button
+            HStack {
+                Button {
+                    withAnimation(ManatherTheme.uiMotion) { openCollection = nil }
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 12, weight: .bold))
+                        Text("Collections")
+                            .font(.system(size: 13, weight: .medium))
+                    }
+                    .foregroundStyle(ManatherTheme.mutedInk)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.microAnimated)
+
+                Spacer()
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 14)
+            .padding(.bottom, 6)
+
+            // Title row + actions
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Image(systemName: isUnassigned ? "tray" : "folder.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(ManatherTheme.accent)
+                Text(name)
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundStyle(ManatherTheme.ink)
+                Text("\(items.count) \(items.count == 1 ? "save" : "saves")")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(ManatherTheme.mutedInk)
+
+                Spacer()
+
+                if !isUnassigned {
+                    Menu {
+                        Button {
+                            ContextPackExporter.export(projectName: name, assets: items)
+                        } label: {
+                            Label("Export Context Pack", systemImage: "shippingbox.and.arrow.backward")
+                        }
+                        Divider()
+                        Button(role: .destructive) {
+                            deleteCollection(name)
+                            withAnimation(ManatherTheme.uiMotion) { openCollection = nil }
+                        } label: {
+                            Label("Delete Collection", systemImage: "trash")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(ManatherTheme.mutedInk)
+                    }
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
+                    .fixedSize()
+                }
+            }
+            .padding(.horizontal, 24)
+            .padding(.bottom, 4)
+
+            if items.isEmpty {
+                collectionEmptyState
+            } else {
+                masonryGrid(items, showsCollectionRow: false)
+            }
+        }
+    }
+
+    private var collectionEmptyState: some View {
+        VStack(spacing: 14) {
+            Spacer()
+            Image(systemName: "tray")
+                .font(.system(size: 36, weight: .light))
+                .foregroundStyle(ManatherTheme.mutedInk.opacity(0.42))
+            Text("This collection is empty")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(ManatherTheme.ink.opacity(0.72))
+            Text("Right-click any save in your library → Add to Collection")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(ManatherTheme.mutedInk.opacity(0.70))
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - Boards tab
@@ -934,6 +1143,44 @@ struct GalleryGridView: View {
         }
     }
 
+    /// Promote any collection name that only lives on an asset into a real
+    /// AssetCollection object, so older libraries gain manageable collections.
+    /// Idempotent — safe to run on every launch.
+    private func seedCollectionsFromAssets() {
+        let existing = Set(savedCollections.map(\.name))
+        let fromAssets = Set(assets.filter { !$0.isDeleted }.compactMap { $0.collectionName })
+        for name in fromAssets where !existing.contains(name) {
+            modelContext.insert(AssetCollection(name: name))
+        }
+    }
+
+    /// Create a collection object for `name` if one doesn't already exist
+    /// (case-insensitive). Used by the right-click "New collection…" flow.
+    private func createCollectionEntity(_ name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        let exists = savedCollections.contains {
+            $0.name.caseInsensitiveCompare(trimmed) == .orderedSame
+        }
+        if !exists {
+            modelContext.insert(AssetCollection(name: trimmed))
+        }
+    }
+
+    /// Delete a collection. Assets in it aren't deleted — they just fall back to
+    /// "Unassigned" (so nothing is lost).
+    private func deleteCollection(_ name: String) {
+        for asset in assets where asset.collectionName == name {
+            asset.collectionName = nil
+        }
+        for collection in savedCollections where collection.name == name {
+            modelContext.delete(collection)
+        }
+        if activeCollectionFilter == name {
+            activeCollectionFilter = nil
+        }
+    }
+
     private func duplicateBoard(_ board: Board) {
         let copy = Board(
             title: board.title + " copy",
@@ -961,62 +1208,6 @@ struct GalleryGridView: View {
             newItem.board = copy
             modelContext.insert(newItem)
         }
-    }
-
-    private func folderCard(title: String, count: Int, items: [AssetItem]) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(isDarkMode ? Color.white.opacity(0.04) : Color.black.opacity(0.02))
-                    .frame(height: 120)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(isDarkMode ? Color.white.opacity(0.1) : Color.black.opacity(0.08), lineWidth: 1)
-                    )
-
-                if let cover = items.first {
-                    if !cover.relativeFilePath.isEmpty, cover.assetType != .codeSnippet {
-                        CachedImageView(relativePath: cover.relativeFilePath, maxSize: 150)
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                            .frame(width: 100, height: 80)
-                            .rotationEffect(.degrees(-4))
-                            .shadow(color: .black.opacity(0.15), radius: 6, x: -2, y: 3)
-                    } else {
-                        Image(systemName: cover.assetType.iconName)
-                            .font(.system(size: 32))
-                            .foregroundStyle(ManatherTheme.accent)
-                            .frame(width: 80, height: 80)
-                            .background(Color.white.opacity(0.1))
-                            .clipShape(Circle())
-                            .rotationEffect(.degrees(-4))
-                    }
-                } else {
-                    Image(systemName: "folder.fill")
-                        .font(.system(size: 44, weight: .light))
-                        .foregroundStyle(ManatherTheme.accent.opacity(0.8))
-                }
-            }
-            .frame(maxWidth: .infinity)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(isDarkMode ? Color.white : Color.primary)
-                    .lineLimit(1)
-
-                Text("\(count) saves")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(isDarkMode ? Color.white.opacity(0.5) : Color.secondary)
-            }
-            .padding(.horizontal, 4)
-        }
-        .padding(10)
-        .background(isDarkMode ? Color.white.opacity(0.03) : Color.white.opacity(0.4))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(isDarkMode ? Color.white.opacity(0.05) : Color.black.opacity(0.05), lineWidth: 1)
-        )
     }
 
     private var controlCluster: some View {
@@ -1110,7 +1301,7 @@ struct GalleryGridView: View {
 
     // MARK: - Masonry Grid
 
-    private func masonryGrid(_ items: [AssetItem]) -> some View {
+    private func masonryGrid(_ items: [AssetItem], showsCollectionRow: Bool = true) -> some View {
         GeometryReader { geometry in
             let spacing: CGFloat = 14
             let columns = distributeToColumns(items, availableWidth: geometry.size.width)
@@ -1139,7 +1330,7 @@ struct GalleryGridView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                 // Collection stack cards (only on "All", no filters/search)
-                if selectedCategory == .all && activeCollectionFilter == nil
+                if showsCollectionRow && selectedCategory == .all && activeCollectionFilter == nil
                     && searchText.isEmpty && !allCollections.isEmpty {
                     collectionStackRow
                 }
@@ -1445,7 +1636,8 @@ struct GalleryGridView: View {
 
                 AssetContextMenuView(
                     asset: target.asset,
-                    collections: allCollections,
+                    collections: collectionNames,
+                    onCreateCollection: { createCollectionEntity($0) },
                     isTrash: isTrashView,
                     onOpen: { selectedAsset = target.asset },
                     onCopyPrompt: { copyPrompt(target.asset) },

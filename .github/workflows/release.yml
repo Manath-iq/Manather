@@ -1,0 +1,88 @@
+name: Release
+
+# Builds a Release version of the app, packages it as a .dmg and publishes it
+# as a GitHub Release whenever a version tag (e.g. v0.1.0) is pushed. People can
+# then just download the .dmg from the Releases page and run the app.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Version tag to build (e.g. v0.1.0). Must already exist."
+        required: true
+
+permissions:
+  contents: write # needed to create the release and upload the .dmg
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    # The project targets a recent macOS SDK, so build on the macOS 26 runner.
+    runs-on: macos-26
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Resolve version
+        id: ver
+        run: echo "tag=${{ github.event.inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
+
+      - name: Select latest Xcode
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
+
+      - name: Build (Release, no code signing)
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project manather.xcodeproj \
+            -scheme manather \
+            -configuration Release \
+            -destination 'platform=macOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="-" \
+            -skipMacroValidation
+
+      - name: Package .dmg
+        run: |
+          set -e
+          APP="build/Build/Products/Release/manather.app"
+          test -d "$APP" || { echo "App not found at $APP"; exit 1; }
+          # Ad-hoc sign so the app launches (after the Gatekeeper override).
+          codesign --force --deep --sign - "$APP"
+          STAGING="$(mktemp -d)"
+          cp -R "$APP" "$STAGING/"
+          ln -s /Applications "$STAGING/Applications"
+          mkdir -p dist
+          hdiutil create -volname "Manather" \
+            -srcfolder "$STAGING" \
+            -ov -format UDZO \
+            "dist/Manather-${{ steps.ver.outputs.tag }}.dmg"
+          ls -lh dist
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.ver.outputs.tag }}" dist/*.dmg \
+            --title "Manather ${{ steps.ver.outputs.tag }}" \
+            --notes "$(cat <<'EOF'
+          Manather for macOS (Apple Silicon / arm64).
+
+          ### Install
+          1. Download the **.dmg** below.
+          2. Open it and drag **Manather** into your Applications folder.
+          3. First launch: the app isn't notarized by Apple, so macOS shows a
+             warning. Right-click **Manather → Open → Open**, or go to
+             **System Settings → Privacy & Security → Open Anyway**.
+          EOF
+          )"

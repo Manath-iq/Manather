@@ -85,6 +85,10 @@ struct AssetMenuItem: Identifiable {
 struct AssetContextMenuView: View {
     let asset: AssetItem
     let collections: [String]
+    /// Create a brand-new collection object with this name (the row also assigns
+    /// the asset to it). Lets you make a collection straight from the right-click
+    /// menu instead of having to open the inspector first.
+    let onCreateCollection: (String) -> Void
     let isTrash: Bool
 
     let onOpen: () -> Void
@@ -100,6 +104,11 @@ struct AssetContextMenuView: View {
 
     private enum Page { case main, collections }
     @State private var page: Page = .main
+
+    // Inline "New collection…" field state (collections sub-page).
+    @State private var isCreatingCollection = false
+    @State private var newCollectionName = ""
+    @FocusState private var newCollectionFocused: Bool
 
     var body: some View {
         VStack(spacing: 2) {
@@ -196,6 +205,19 @@ struct AssetContextMenuView: View {
 
         divider
 
+        // Create a new collection right here, then drop the asset into it.
+        if title.contains("Collection") {
+            if isCreatingCollection {
+                newCollectionField(assign: assign)
+            } else {
+                row(.init(title: "New Collection…", systemImage: "plus") {
+                    isCreatingCollection = true
+                    DispatchQueue.main.async { newCollectionFocused = true }
+                })
+            }
+            divider
+        }
+
         if options.isEmpty {
             Text("No \(title.contains("Collection") ? "collections" : "projects") yet")
                 .font(.system(size: 12))
@@ -216,6 +238,38 @@ struct AssetContextMenuView: View {
                   systemImage: "minus.circle") {
             assign(nil); onDismiss()
         })
+    }
+
+    /// Inline text field for naming a new collection inside the menu.
+    private func newCollectionField(assign: @escaping (String?) -> Void) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "folder.badge.plus")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.white.opacity(0.85))
+                .frame(width: 18, alignment: .center)
+
+            TextField("Name", text: $newCollectionName)
+                .textFieldStyle(.plain)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.white)
+                .focused($newCollectionFocused)
+                .onSubmit { commitNewCollection(assign: assign) }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+    }
+
+    private func commitNewCollection(assign: @escaping (String?) -> Void) {
+        let name = newCollectionName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else {
+            isCreatingCollection = false
+            return
+        }
+        onCreateCollection(name)
+        assign(name)
+        newCollectionName = ""
+        isCreatingCollection = false
+        onDismiss()
     }
 
     // MARK: Pieces
