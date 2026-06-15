@@ -1584,11 +1584,18 @@ struct GalleryGridView: View {
                     forTypeIdentifier: UTType.fileURL.identifier,
                     options: nil
                 ) { item, _ in
-                    if let data = item as? Data,
-                       let url = URL(dataRepresentation: data, relativeTo: nil) {
-                        DispatchQueue.main.async {
-                            importFile(from: url)
-                        }
+                    // macOS 13+ returns URL directly; older builds return Data
+                    let resolved: URL?
+                    if let url = item as? URL {
+                        resolved = url
+                    } else if let data = item as? Data {
+                        resolved = URL(dataRepresentation: data, relativeTo: nil)
+                    } else {
+                        resolved = nil
+                    }
+                    guard let url = resolved else { return }
+                    DispatchQueue.main.async {
+                        importFile(from: url)
                     }
                 }
             }
