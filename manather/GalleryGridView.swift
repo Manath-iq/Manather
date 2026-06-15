@@ -1336,6 +1336,7 @@ struct GalleryGridView: View {
             )
         }
         .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
         .focusable(false)
         .fixedSize()
     }
