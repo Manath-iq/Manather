@@ -211,80 +211,78 @@ struct AssetCardView: View {
     // MARK: - Specialized Bookmark Card
 
     private var webLinkCard: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        ZStack(alignment: .bottomLeading) {
+            // Full-bleed screenshot or placeholder
             if !asset.relativeFilePath.isEmpty {
-                // Show the website screenshot
-                CachedImageView(relativePath: asset.relativeFilePath, maxSize: maxImageSize)
-                    .frame(height: 120)
-                    .clipped()
+                CachedImageView(
+                    relativePath: asset.relativeFilePath,
+                    maxSize: maxImageSize,
+                    contentMode: .fill
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                // Show a nice placeholder
-                ZStack {
-                    LinearGradient(
-                        colors: [
-                            Color(red: 0.12, green: 0.22, blue: 0.22),
-                            Color(red: 0.07, green: 0.10, blue: 0.10)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                    
-                    VStack(spacing: 8) {
-                        Image(systemName: "globe")
-                            .font(.system(size: 24))
-                            .foregroundStyle(ManatherTheme.accent.opacity(0.88))
-                        
-                        if isPending {
-                            HStack(spacing: 6) {
-                                ProgressView()
-                                    .controlSize(.mini)
-                                Text("Generating preview")
-                                    .font(.system(size: 10, weight: .medium))
-                                    .foregroundStyle(.white.opacity(0.6))
-                            }
-                        } else {
-                            Text("Preview unavailable")
-                                .font(.system(size: 10, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.45))
-                        }
-                    }
-                }
-                .frame(height: 120)
+                webLinkPlaceholder
             }
-            
-            // Details area
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 5) {
-                    Image(systemName: "globe")
-                        .font(.system(size: 10))
-                        .foregroundStyle(ManatherTheme.accent)
-                    
-                    Text(URL(string: asset.sourceURL)?.host ?? "Web Link")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.45))
-                        .lineLimit(1)
-                    
-                    Spacer()
+
+            // Gradient so text is always readable against any screenshot
+            LinearGradient(
+                colors: [.clear, .black.opacity(0.72)],
+                startPoint: UnitPoint(x: 0.5, y: 0.25),
+                endPoint: .bottom
+            )
+
+            // Domain + title overlay
+            VStack(alignment: .leading, spacing: 3) {
+                if let host = URL(string: asset.sourceURL)?.host, !host.isEmpty {
+                    HStack(spacing: 4) {
+                        Image(systemName: "globe")
+                            .font(.system(size: 9))
+                        Text(host)
+                            .font(.system(size: 9, weight: .medium))
+                            .lineLimit(1)
+                    }
+                    .foregroundStyle(.white.opacity(0.65))
                 }
-                
                 Text(asset.title)
-                    .font(.system(size: 12, weight: .bold))
+                    .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(.white)
                     .lineLimit(2)
-                    .multilineTextAlignment(.leading)
-                
-                if !asset.notes.isEmpty {
-                    Text(asset.notes)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.white.opacity(0.5))
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-                }
+                    .shadow(color: .black.opacity(0.35), radius: 2, y: 1)
             }
             .padding(12)
-            .background(Color(red: 0.07, green: 0.12, blue: 0.12))
         }
         .frame(maxWidth: .infinity)
+        .aspectRatio(1.6, contentMode: .fit)
+        .clipped()
+    }
+
+    private var webLinkPlaceholder: some View {
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color(red: 0.10, green: 0.18, blue: 0.20),
+                    Color(red: 0.06, green: 0.09, blue: 0.10)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            if isPending {
+                VStack(spacing: 8) {
+                    ProgressView()
+                        .controlSize(.regular)
+                        .tint(.white.opacity(0.55))
+                    Text("Generating preview…")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.45))
+                }
+            } else {
+                Image(systemName: "globe")
+                    .font(.system(size: 32, weight: .light))
+                    .foregroundStyle(ManatherTheme.accent.opacity(0.65))
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - Specialized Code Snippet Card
