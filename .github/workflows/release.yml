@@ -29,7 +29,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.tag || github.ref }}
+          # Always build the exact commit that triggered the run: the tagged
+          # commit for a tag push, or the branch HEAD for a manual dispatch.
+          # (For dispatch the input tag may not exist yet — we create it below.)
+          ref: ${{ github.sha }}
 
       - name: Resolve version
         id: ver
@@ -88,4 +91,5 @@ jobs:
           EOF
           gh release create "${{ steps.ver.outputs.tag }}" dist/*.dmg \
             --title "Manather ${{ steps.ver.outputs.tag }}" \
-            --notes-file dist/notes.md
+            --notes-file dist/notes.md \
+            --target "${{ github.sha }}"
