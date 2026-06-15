@@ -189,6 +189,17 @@ struct BoardCanvasView: View {
         draftItem?.y = Double(min(draftStart.y, cur.y))
         draftItem?.width = Double(max(1, abs(cur.x - draftStart.x)))
         draftItem?.height = Double(max(1, abs(cur.y - draftStart.y)))
+        // Line/arrow shapes keep the drag direction so the stroke points where
+        // the user dragged, not always from the box's top-left to bottom-right.
+        if let item = draftItem, item.kind == .shape {
+            switch item.shapeKind {
+            case .line, .arrow, .elbowArrow:
+                item.flipH = cur.x < draftStart.x
+                item.flipV = cur.y < draftStart.y
+            default:
+                break
+            }
+        }
     }
 
     /// Build the item being rubber-band-drawn for the current tool.

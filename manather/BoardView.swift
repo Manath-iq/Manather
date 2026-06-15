@@ -313,6 +313,8 @@ struct BoardView: View {
             frameTitle: item.frameTitle
         )
         copy.rotation = item.rotation
+        copy.flipH = item.flipH
+        copy.flipV = item.flipV
         copy.fontName = item.fontName
         copy.fontSize = item.fontSize
         copy.isBold = item.isBold

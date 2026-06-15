@@ -97,6 +97,10 @@ final class BoardItem {
     var width: Double
     var height: Double
     var rotation: Double = 0
+    // line / arrow shapes: which way the stroke points inside its box, so an
+    // arrow can aim in any direction instead of always top-left → bottom-right.
+    var flipH: Bool = false
+    var flipV: Bool = false
     var zIndex: Int
     var isLocked: Bool = false
 
@@ -175,6 +179,8 @@ struct BoardItemSnapshot {
     var width: Double
     var height: Double
     var rotation: Double
+    var flipH: Bool
+    var flipV: Bool
     var zIndex: Int
     var isLocked: Bool
     var assetID: UUID?
@@ -197,6 +203,8 @@ struct BoardItemSnapshot {
         width = item.width
         height = item.height
         rotation = item.rotation
+        flipH = item.flipH
+        flipV = item.flipV
         zIndex = item.zIndex
         isLocked = item.isLocked
         assetID = item.assetID
@@ -220,6 +228,8 @@ struct BoardItemSnapshot {
         item.width = width
         item.height = height
         item.rotation = rotation
+        item.flipH = flipH
+        item.flipV = flipV
         item.zIndex = zIndex
         item.isLocked = isLocked
         item.assetID = assetID

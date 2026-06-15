@@ -215,20 +215,29 @@ struct BoardItemView: View {
         let lineWidth = max(1.5, 3 * zoom)
         let strokeStyle = StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round)
 
-        switch item.shapeKind {
-        case .rectangle:
-            RoundedRectangle(cornerRadius: 2, style: .continuous).fill(color)
-        case .ellipse:
-            Ellipse().fill(color)
-        case .triangle:
-            TriangleShape().fill(color)
-        case .line:
-            LineShape().stroke(color, style: strokeStyle)
-        case .arrow:
-            ArrowShape().stroke(color, style: strokeStyle)
-        case .elbowArrow:
-            ElbowArrowShape().stroke(color, style: strokeStyle)
+        Group {
+            switch item.shapeKind {
+            case .rectangle:
+                RoundedRectangle(cornerRadius: 2, style: .continuous).fill(color)
+            case .ellipse:
+                Ellipse().fill(color)
+            case .triangle:
+                TriangleShape().fill(color)
+            case .line:
+                LineShape().stroke(color, style: strokeStyle)
+            case .arrow:
+                ArrowShape().stroke(color, style: strokeStyle)
+            case .elbowArrow:
+                ElbowArrowShape().stroke(color, style: strokeStyle)
+            }
         }
+        // Reflect line/arrow strokes to honor the drag direction (the box stays
+        // the same; only the diagonal the stroke runs along flips). No effect on
+        // filled shapes, whose flip flags are always false.
+        .scaleEffect(
+            x: isStroke && item.flipH ? -1 : 1,
+            y: isStroke && item.flipV ? -1 : 1
+        )
     }
 
     // MARK: - Note / text rendering
