@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/assets/app-icon.png" width="120" alt="Manather icon" />
+<img src="media/app-icon.png" width="120" alt="Manather icon" />
 
 # Manather
 
@@ -23,7 +23,7 @@ Collect references, skills, MCP servers, snippets, and prompts — then export a
 
 <br/>
 
-<img src="docs/screenshots/cover.png" width="820" alt="Manather screenshot" />
+<img src="media/cover.png" width="820" alt="Manather screenshot" />
 
 </div>
 
@@ -101,15 +101,15 @@ live color palette you can copy to the clipboard.
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/screenshots/library.png" alt="Library grid" /></td>
-    <td width="50%"><img src="docs/screenshots/board.png" alt="Moodboard canvas" /></td>
+    <td width="50%"><img src="media/library.png" alt="Library grid" /></td>
+    <td width="50%"><img src="media/board.png" alt="Moodboard canvas" /></td>
   </tr>
   <tr>
     <td align="center"><b>Library</b> — masonry grid, color filter, search</td>
     <td align="center"><b>Boards</b> — moodboard canvas</td>
   </tr>
   <tr>
-    <td colspan="2"><img src="docs/screenshots/detail.png" alt="Asset detail view" /></td>
+    <td colspan="2"><img src="media/detail.png" alt="Asset detail view" /></td>
   </tr>
   <tr>
     <td colspan="2" align="center"><b>Detail view</b> — prompt, color palette, and tags</td>
