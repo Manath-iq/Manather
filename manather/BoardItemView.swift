@@ -32,6 +32,7 @@ struct BoardItemView: View {
     @State private var dragTranslation: CGSize = .zero
     @State private var resizingCorner: Corner?
     @State private var resizeTranslation: CGSize = .zero
+    @State private var isRotating = false
     @FocusState private var isTextFocused: Bool
 
     private var textBinding: Binding<String> {
@@ -45,59 +46,66 @@ struct BoardItemView: View {
 
     private static let minSize: CGFloat = 30
 
-    // The item's canvas-space rect, with any in-progress resize applied live.
+    // The item's canvas-space (unrotated) rect, with any in-progress resize
+    // applied live. Rotation is applied separately when rendering; here we work
+    // out the new box so that the corner opposite the dragged one stays put on
+    // screen even when the item is rotated.
     private var canvasRect: CGRect {
-        var x = CGFloat(item.x)
-        var y = CGFloat(item.y)
-        var w = CGFloat(item.width)
-        var h = CGFloat(item.height)
+        let w0 = CGFloat(item.width)
+        let h0 = CGFloat(item.height)
 
-        if let corner = resizingCorner {
-            let dx = resizeTranslation.width / zoom
-            let dy = resizeTranslation.height / zoom
-            let rightSide = corner == .bottomRight || corner == .topRight
-            let bottomSide = corner == .bottomRight || corner == .bottomLeft
-
-            if item.kind == .image, w > 0, h > 0 {
-                // Images resize proportionally so the frame always matches the
-                // picture's aspect ratio. The dragged corner leads on whichever
-                // axis you move more; the opposite corner stays anchored.
-                let assetRatio = asset?.aspectRatio ?? 0
-                let ratio = assetRatio > 0 ? assetRatio : (w / h)
-                var newW: CGFloat
-                var newH: CGFloat
-                if abs(dx) >= abs(dy) {
-                    newW = w + (rightSide ? dx : -dx)
-                    newH = newW / ratio
-                } else {
-                    newH = h + (bottomSide ? dy : -dy)
-                    newW = newH * ratio
-                }
-                if newW < Self.minSize { newW = Self.minSize; newH = newW / ratio }
-                if newH < Self.minSize { newH = Self.minSize; newW = newH * ratio }
-                if !rightSide { x = (x + w) - newW }
-                if !bottomSide { y = (y + h) - newH }
-                w = newW
-                h = newH
-            } else {
-                switch corner {
-                case .bottomRight: w += dx;        h += dy
-                case .bottomLeft:  x += dx; w -= dx; h += dy
-                case .topRight:    y += dy; w += dx; h -= dy
-                case .topLeft:     x += dx; y += dy; w -= dx; h -= dy
-                }
-                // Respect a minimum size without shifting the opposite edge.
-                if w < Self.minSize {
-                    if corner == .topLeft || corner == .bottomLeft { x -= Self.minSize - w }
-                    w = Self.minSize
-                }
-                if h < Self.minSize {
-                    if corner == .topLeft || corner == .topRight { y -= Self.minSize - h }
-                    h = Self.minSize
-                }
-            }
+        guard let corner = resizingCorner else {
+            return CGRect(x: item.x, y: item.y, width: w0, height: h0)
         }
-        return CGRect(x: x, y: y, width: w, height: h)
+
+        let cx0 = CGFloat(item.x) + w0 / 2   // old center, canvas space
+        let cy0 = CGFloat(item.y) + h0 / 2
+
+        // The drag is in screen space; convert to canvas units, then rotate into
+        // the item's own (unrotated) axes so a corner drag resizes along the
+        // item's edges no matter how it's turned.
+        let theta = CGFloat(item.rotation) * .pi / 180
+        let cosT = cos(theta), sinT = sin(theta)
+        let dCanvasX = resizeTranslation.width / zoom
+        let dCanvasY = resizeTranslation.height / zoom
+        let localDx =  cosT * dCanvasX + sinT * dCanvasY
+        let localDy = -sinT * dCanvasX + cosT * dCanvasY
+
+        let rightSide = corner == .bottomRight || corner == .topRight
+        let bottomSide = corner == .bottomRight || corner == .bottomLeft
+
+        var w = w0
+        var h = h0
+        if item.kind == .image, w0 > 0, h0 > 0 {
+            // Images keep their aspect ratio; the axis you move more leads.
+            let assetRatio = asset?.aspectRatio ?? 0
+            let ratio = assetRatio > 0 ? assetRatio : (w0 / h0)
+            if abs(localDx) >= abs(localDy) {
+                w = w0 + (rightSide ? localDx : -localDx)
+                h = w / ratio
+            } else {
+                h = h0 + (bottomSide ? localDy : -localDy)
+                w = h * ratio
+            }
+            if w < Self.minSize { w = Self.minSize; h = w / ratio }
+            if h < Self.minSize { h = Self.minSize; w = h * ratio }
+        } else {
+            w = max(Self.minSize, w0 + (rightSide ? localDx : -localDx))
+            h = max(Self.minSize, h0 + (bottomSide ? localDy : -localDy))
+        }
+
+        // Keep the opposite corner fixed in canvas space. Its local sign is the
+        // negation of the side being dragged.
+        let fx: CGFloat = rightSide ? -1 : 1
+        let fy: CGFloat = bottomSide ? -1 : 1
+        let f0x = fx * w0 / 2, f0y = fy * h0 / 2
+        let fixedX = cx0 + (cosT * f0x - sinT * f0y)
+        let fixedY = cy0 + (sinT * f0x + cosT * f0y)
+        let f1x = fx * w / 2, f1y = fy * h / 2
+        let cx = fixedX - (cosT * f1x - sinT * f1y)
+        let cy = fixedY - (sinT * f1x + cosT * f1y)
+
+        return CGRect(x: cx - w / 2, y: cy - h / 2, width: w, height: h)
     }
 
     // Screen geometry derived from the camera + live drag offset.
@@ -130,6 +138,7 @@ struct BoardItemView: View {
         }
         .frame(width: screenSize.width, height: screenSize.height)
         .position(screenCenter)
+        .rotationEffect(.degrees(item.rotation))
         .onChange(of: isEditing) { _, editing in
             isTextFocused = editing
         }
@@ -339,8 +348,29 @@ struct BoardItemView: View {
             handle(.topRight)
             handle(.bottomLeft)
             handle(.bottomRight)
+            rotationHandle
         }
         .frame(width: screenSize.width, height: screenSize.height)
+    }
+
+    /// A small knob on a stalk above the top edge that rotates the item. It sits
+    /// inside the selection overlay, so it rides along as the item turns.
+    private var rotationHandle: some View {
+        let w = screenSize.width
+        let stalk: CGFloat = 22
+        return ZStack {
+            Rectangle()
+                .fill(ManatherTheme.accent)
+                .frame(width: 1.5, height: stalk)
+                .position(x: w / 2, y: -stalk / 2)
+                .allowsHitTesting(false)
+            Circle()
+                .fill(Color.white)
+                .overlay(Circle().stroke(ManatherTheme.accent, lineWidth: 1.5))
+                .frame(width: 12, height: 12)
+                .position(x: w / 2, y: -stalk)
+                .gesture(rotateGesture)
+        }
     }
 
     private func handle(_ corner: Corner) -> some View {
@@ -419,6 +449,41 @@ struct BoardItemView: View {
                 item.height = Double(rect.height)
                 onCommit()
             }
+    }
+
+    private var rotateGesture: some Gesture {
+        // Measured in global space (the knob moves while you turn it, so a local
+        // gesture would feed back). The angle is taken from the item's center to
+        // the cursor; the knob sits above center, hence the +90° offset.
+        DragGesture(minimumDistance: 0, coordinateSpace: .global)
+            .onChanged { value in
+                if !isRotating {
+                    isRotating = true
+                    onSelect()
+                    if !item.isLocked { onBeginInteraction() }
+                }
+                guard !item.isLocked else { return }
+                let center = screenCenter
+                let angle = atan2(value.location.y - center.y, value.location.x - center.x)
+                let degrees = angle * 180 / .pi + 90
+                item.rotation = Double(snappedAngle(degrees))
+            }
+            .onEnded { _ in
+                defer { isRotating = false }
+                guard !item.isLocked else { return }
+                onCommit()
+            }
+    }
+
+    /// Normalize to [0, 360) and gently snap near each 45° step so it's easy to
+    /// land on straight angles.
+    private func snappedAngle(_ degrees: CGFloat) -> CGFloat {
+        var a = degrees.truncatingRemainder(dividingBy: 360)
+        if a < 0 { a += 360 }
+        for step in stride(from: CGFloat(0), through: 360, by: 45) {
+            if abs(a - step) <= 5 { return step.truncatingRemainder(dividingBy: 360) }
+        }
+        return a
     }
 }
 
