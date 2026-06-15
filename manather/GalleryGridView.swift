@@ -1138,19 +1138,7 @@ struct GalleryGridView: View {
 
     private func boardCard(_ board: Board) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(ManatherTheme.viewerBackground)
-                    .frame(height: 120)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(Color.white.opacity(0.06), lineWidth: 1)
-                    )
-                Image(systemName: "square.dashed")
-                    .font(.system(size: 28, weight: .light))
-                    .foregroundStyle(.white.opacity(0.20))
-            }
-            .frame(maxWidth: .infinity)
+            boardPreviewArea(board)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(board.title.isEmpty ? "Untitled board" : board.title)
@@ -1171,6 +1159,115 @@ struct GalleryGridView: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(isDarkMode ? Color.white.opacity(0.05) : Color.black.opacity(0.05), lineWidth: 1)
         )
+    }
+
+    /// Thumbnail area for a board card.
+    /// Uses up to 3 images already on the board (cheap — same cached thumbnails).
+    /// Falls back to a content-type summary, then an empty hint.
+    @ViewBuilder
+    private func boardPreviewArea(_ board: Board) -> some View {
+        let imagePaths: [String] = board.items
+            .filter { $0.kind == .image }
+            .compactMap { item -> String? in
+                guard let id = item.assetID,
+                      let asset = assets.first(where: { $0.id == id }),
+                      !asset.relativeFilePath.isEmpty else { return nil }
+                return asset.relativeFilePath
+            }
+            .prefix(3)
+            .map { $0 }
+
+        ZStack {
+            // Dark base (always visible behind images / in empty state)
+            ManatherTheme.viewerBackground
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            if !imagePaths.isEmpty {
+                boardImageCollage(imagePaths)
+            } else {
+                boardNoImageHint(board)
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: 120, maxHeight: 120)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.white.opacity(0.07), lineWidth: 1)
+        )
+    }
+
+    /// 1 image → full bleed.  2 → side-by-side.  3 → left large + right column.
+    @ViewBuilder
+    private func boardImageCollage(_ paths: [String]) -> some View {
+        switch paths.count {
+        case 1:
+            CachedImageView(relativePath: paths[0], maxSize: 400, contentMode: .fill)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+        case 2:
+            HStack(spacing: 2) {
+                ForEach(paths, id: \.self) { path in
+                    CachedImageView(relativePath: path, maxSize: 250, contentMode: .fill)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .clipped()
+                }
+            }
+
+        default: // 3+
+            HStack(spacing: 2) {
+                CachedImageView(relativePath: paths[0], maxSize: 300, contentMode: .fill)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
+
+                VStack(spacing: 2) {
+                    CachedImageView(relativePath: paths[1], maxSize: 200, contentMode: .fill)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .clipped()
+                    CachedImageView(relativePath: paths[2], maxSize: 200, contentMode: .fill)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .clipped()
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+    }
+
+    /// Shown when there are no image items — summarises content types with icons.
+    @ViewBuilder
+    private func boardNoImageHint(_ board: Board) -> some View {
+        if board.items.isEmpty {
+            VStack(spacing: 6) {
+                Image(systemName: "square.dashed")
+                    .font(.system(size: 24, weight: .light))
+                    .foregroundStyle(.white.opacity(0.18))
+                Text("Empty board")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.28))
+            }
+        } else {
+            let noteCount  = board.items.filter { $0.kind == .note || $0.kind == .text  }.count
+            let shapeCount = board.items.filter { $0.kind == .shape || $0.kind == .frame }.count
+
+            HStack(spacing: 20) {
+                if noteCount > 0 {
+                    boardHintItem(icon: "note.text", count: noteCount)
+                }
+                if shapeCount > 0 {
+                    boardHintItem(icon: "square.on.circle", count: shapeCount)
+                }
+            }
+        }
+    }
+
+    private func boardHintItem(icon: String, count: Int) -> some View {
+        VStack(spacing: 5) {
+            Image(systemName: icon)
+                .font(.system(size: 22, weight: .light))
+                .foregroundStyle(.white.opacity(0.42))
+            Text("\(count)")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.32))
+        }
     }
 
     /// Projects were merged into Collections: move any old project tag into a
