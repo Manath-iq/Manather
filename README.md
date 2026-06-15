@@ -13,6 +13,18 @@ Collect references, skills, MCP servers, snippets, and prompts — then export a
 [![Build](https://github.com/Manath-iq/Manather/actions/workflows/build.yml/badge.svg)](https://github.com/Manath-iq/Manather/actions/workflows/build.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
+<br/>
+
+<a href="https://github.com/Manath-iq/Manather/releases/latest">
+  <img src="https://img.shields.io/badge/⬇%20Download%20for%20macOS-Latest%20.dmg-2563eb?style=for-the-badge&logo=apple&logoColor=white" alt="Download the latest macOS .dmg" />
+</a>
+
+<sub>Apple Silicon · macOS 14+ · free & open source — or [build from source](#getting-started)</sub>
+
+<br/>
+
+<img src="docs/screenshots/cover.png" width="820" alt="Manather screenshot" />
+
 </div>
 
 ---
@@ -65,6 +77,12 @@ my-project-context-pack/
 ```
 Hand the folder to an AI agent and it has everything it needs to start.
 
+### 🧲 Boards — a moodboard canvas
+- Infinite **dot-grid canvas** with smooth pan & zoom
+- Drop in library images, plus **notes, text, shapes, frames, and arrows**
+- **Move, resize, and rotate** any object; arrows draw in any direction; notes scroll long text
+- Export the whole board as a **PNG**
+
 ### 🖼 Detail view
 A full-screen viewer with pinch-to-zoom, keyboard navigation, a glassmorphic inspector, and a
 live color palette you can copy to the clipboard.
@@ -81,13 +99,39 @@ live color palette you can copy to the clipboard.
 
 ## Screenshots
 
-> _Coming soon._ Clone, build, and run locally to see it in action (~30s in Xcode).
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/library.png" alt="Library grid" /></td>
+    <td width="50%"><img src="docs/screenshots/board.png" alt="Moodboard canvas" /></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Library</b> — masonry grid, color filter, search</td>
+    <td align="center"><b>Boards</b> — moodboard canvas</td>
+  </tr>
+  <tr>
+    <td colspan="2"><img src="docs/screenshots/detail.png" alt="Asset detail view" /></td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center"><b>Detail view</b> — prompt, color palette, and tags</td>
+  </tr>
+</table>
+
+---
+
+## Download
+
+**[⬇ Download the latest `.dmg` from Releases](https://github.com/Manath-iq/Manather/releases/latest)** — built for Apple Silicon.
+
+1. Open the `.dmg` and drag **Manather** into your Applications folder.
+2. First launch: the app isn't notarized by Apple yet, so macOS shows a warning.
+   Right-click **Manather → Open → Open**, or allow it under
+   **System Settings → Privacy & Security → Open Anyway**.
 
 ---
 
 ## Getting Started
 
-**Requirements:** macOS 14 (Sonoma) or later, Xcode 16+.
+Prefer to build it yourself? **Requirements:** macOS 14 (Sonoma) or later, Xcode 16+.
 
 ```bash
 git clone https://github.com/Manath-iq/Manather.git
@@ -124,12 +168,12 @@ no broken links when originals move.
 - [x] Skills & MCP server types
 - [x] Color filter, search, sort
 - [x] Projects + Context Pack export
-- [x] Continuous integration (GitHub Actions builds every push)
+- [x] Moodboard canvas (Boards) — move / resize / rotate, arrows, PNG export
+- [x] Continuous integration + one-click `.dmg` releases
 - [ ] App icon polish & screenshots
 
 **Next**
 - [ ] Many-to-many: one asset across multiple projects
-- [ ] Canvas board inside a project (moodboard)
 - [ ] AI provider: prompt-based image variations, vision auto-tagging, AI-written `CONTEXT.md`
 - [ ] Auto-import skills / MCP configs from `~/.claude/`
 - [ ] Project templates (preloaded packs)
