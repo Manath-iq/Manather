@@ -1,15 +1,17 @@
 <div align="center">
 
-<img src="media/app-icon.png" width="120" alt="Manather icon" />
+<img src="media/app-icon.png" width="116" alt="Manather icon" />
 
 # Manather
 
-**The native macOS library for vibe-coders.**
-Collect references, skills, MCP servers, snippets, and prompts — then export any project as a ready-to-use context pack for your AI agent.
+### The native macOS home for everything you feed your AI.
 
-[![Platform](https://img.shields.io/badge/platform-macOS%2014%2B-black?logo=apple)](https://www.apple.com/macos/)
-[![Swift](https://img.shields.io/badge/Swift-5.9-orange?logo=swift&logoColor=white)](https://swift.org)
-[![SwiftUI](https://img.shields.io/badge/SwiftUI-SwiftData-blue?logo=swift&logoColor=white)](https://developer.apple.com/xcode/swiftui/)
+Collect references, skills, MCP servers, snippets, and prompts —
+then export any project as a ready-to-use **context pack** for your AI agent.
+
+[![Platform](https://img.shields.io/badge/macOS-14%2B-black?logo=apple&logoColor=white)](https://www.apple.com/macos/)
+[![Latest release](https://img.shields.io/github/v/release/Manath-iq/Manather?label=latest&color=2563eb)](https://github.com/Manath-iq/Manather/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/Manath-iq/Manather/total?color=22c55e&label=downloads)](https://github.com/Manath-iq/Manather/releases)
 [![Build](https://github.com/Manath-iq/Manather/actions/workflows/build.yml/badge.svg)](https://github.com/Manath-iq/Manather/actions/workflows/build.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
@@ -19,81 +21,95 @@ Collect references, skills, MCP servers, snippets, and prompts — then export a
   <img src="https://img.shields.io/badge/⬇%20Download%20for%20macOS-Latest%20.dmg-2563eb?style=for-the-badge&logo=apple&logoColor=white" alt="Download the latest macOS .dmg" />
 </a>
 
-<sub>Apple Silicon · macOS 14+ · free & open source — or [build from source](#getting-started)</sub>
+<sub>Apple Silicon · macOS 14+ · free & open source — or [build from source](#build-from-source)</sub>
 
-<br/>
+<br/><br/>
 
-<img src="media/cover.png" width="820" alt="Manather screenshot" />
+<img src="media/cover.png" width="840" alt="Manather — the library for vibe-coders" />
 
 </div>
 
 ---
 
-## What is Manather?
+## Why Manather?
 
-Vibe-coders build projects by feeding AI agents the right context: design references, reusable
-skills, MCP server configs, code snippets, reference links, and carefully tuned prompts. Today that
-context lives scattered across folders, screenshots, and chat history.
+Vibe-coders build by feeding AI agents the right **context**: design references, reusable skills,
+MCP server configs, code snippets, reference links, and carefully tuned prompts.
 
-**Manather is one home for all of it.** Drop in everything you want your AI to know about a project,
-organize it visually, and when you're ready — **export the whole project as a "context pack"**: a
-clean folder with the asset files, a generated `CONTEXT.md`, and a `manifest.json`. Drop that folder
-into a repo, point Claude Code (or any agent) at it, and let it build.
+Today that context is scattered — across Finder folders, random screenshots, Notes, and chat history.
+When you start a new project you rebuild it from scratch.
 
-> Manather borrows its visual language from GatherOS, but it's a different product: a **build-context
-> manager for AI-assisted development**, not a design-reference gallery.
+**Manather is one home for all of it.** Save your building blocks once, organize them visually, and
+when you're ready, hand a whole project to your agent as a single clean folder it can read.
+
+---
+
+## How it works
+
+<table>
+<tr>
+<td width="33%" valign="top">
+
+### 1 · Collect
+Drag in images, links, snippets, skills, MCP configs. Each asset can carry an **AI prompt**,
+**notes**, and **tags**.
+
+</td>
+<td width="33%" valign="top">
+
+### 2 · Organize
+Group assets into **Collections** and **Projects**. Find anything fast with **color filters**,
+**search**, and a Pinterest-style grid.
+
+</td>
+<td width="33%" valign="top">
+
+### 3 · Export
+Right-click a project → **Export Context Pack**. Drop the folder in a repo and point Claude Code
+(or any agent) at it.
+
+</td>
+</tr>
+</table>
+
+A context pack is a clean, agent-ready folder:
+
+```text
+my-project-context-pack/
+├── CONTEXT.md      # LLM-readable brief: skills, MCP servers, snippets, links, references
+├── manifest.json   # machine-readable index of every asset
+├── assets/         # copied image / video files
+├── skills/         # each skill as a .md file
+└── snippets/       # each snippet in its native extension
+```
 
 ---
 
 ## Features
 
-### 📚 A library for every building block
-- **Images, GIFs, video** — visual references, design screenshots, background clips
-- **Web links** — bookmarks with auto-generated page screenshots (headless `WKWebView`)
-- **Code snippets** — syntax-labeled, reusable patterns
-- **MCP servers** — launch command + JSON config, so you never lose a server setup
-- **Skills** — markdown instructions for AI agents (Claude Code skills and similar)
+**🧰 A library for every building block**
 
-### 🎨 Find things fast
-- **Pinterest-style masonry grid** with a live 2–6 column slider
-- **Color filter** — 7 base colors; dominant palettes are extracted on import and matched by hue
-- **Search** across titles, prompts, notes, tags, and code
-- **Sort** by recency or name
+| Type | What it stores |
+|---|---|
+| 🖼 **Images · GIF · video** | visual references, design screenshots, background clips |
+| 🔗 **Web links** | bookmarks with an auto-generated page screenshot |
+| 💻 **Code snippets** | reusable, syntax-labeled patterns |
+| 🔌 **MCP servers** | launch command + JSON config, so a setup is never lost |
+| 🧩 **Skills** | markdown instructions for AI agents (Claude Code skills & similar) |
+| ✍️ **Prompts** | stored right on any asset, copy with one click |
 
-### 🗂 Organize into Projects
-- Group any asset into a **Collection** or a **Project**
-- Tag freely, with one-click **Auto-tag**
-- Store an **AI prompt** and free-form **notes** on every asset
+**🎨 Find things fast** — masonry grid with a 2–6 column slider · color filter (7 hues, auto-extracted
+on import) · search across titles, prompts, notes, tags & code · sort by recency or name.
 
-### 📦 Export Context Pack — the killer feature
-Right-click any project → **Export Context Pack**. Manather writes:
-```
-my-project-context-pack/
-├── CONTEXT.md          # LLM-readable brief: skills, MCP servers, snippets, links, references
-├── manifest.json       # machine-readable index of every asset
-├── assets/             # copied image / video files
-├── skills/             # each skill as a .md file
-└── snippets/           # each snippet in its native extension
-```
-Hand the folder to an AI agent and it has everything it needs to start.
+**🧲 Boards — a moodboard canvas** — infinite dot-grid with smooth pan & zoom · drop in library
+images plus notes, text, shapes, frames & arrows · **move, resize, and rotate** any object · arrows
+draw in any direction · long notes scroll in place · export the board as a **PNG**.
 
-### 🧲 Boards — a moodboard canvas
-- Infinite **dot-grid canvas** with smooth pan & zoom
-- Drop in library images, plus **notes, text, shapes, frames, and arrows**
-- **Move, resize, and rotate** any object; arrows draw in any direction; notes scroll long text
-- Export the whole board as a **PNG**
+**🖼 Detail view** — full-screen viewer with zoom, keyboard navigation, a glassmorphic inspector, and
+a live color palette you can copy to the clipboard.
 
-### 🖼 Detail view
-A full-screen viewer with pinch-to-zoom, keyboard navigation, a glassmorphic inspector, and a
-live color palette you can copy to the clipboard.
-
-### ⌨️ Native niceties
-- **Custom context menu** — a styled dark right-click menu (not the system one) for open, copy
-  prompt/image, organize into collections/projects, reveal in Finder, export, and delete
-- **Zoom the whole interface** with **⌘+ / ⌘− / ⌘0**, like Notes or Messages
-- **Fluid motion** — sliding tab & category indicators, a smooth zoom into the viewer, and a
-  consistent hover lift on every card
-- **Light & dark themes**, plus search (**⌘F**) and quick tab switching (**⌘1–3**)
+**⌨️ Native niceties** — styled dark right-click menu · zoom the whole UI (**⌘+ / ⌘− / ⌘0**) · light &
+dark themes · search (**⌘F**) and quick tab switching · fluid, consistent motion throughout.
 
 ---
 
@@ -118,20 +134,22 @@ live color palette you can copy to the clipboard.
 
 ---
 
-## Download
+## Install
 
-**[⬇ Download the latest `.dmg` from Releases](https://github.com/Manath-iq/Manather/releases/latest)** — built for Apple Silicon.
+**[⬇ Download the latest `.dmg`](https://github.com/Manath-iq/Manather/releases/latest)** — built for Apple Silicon.
 
-1. Open the `.dmg` and drag **Manather** into your Applications folder.
+1. Open the `.dmg` and drag **Manather** into your **Applications** folder.
 2. First launch: the app isn't notarized by Apple yet, so macOS shows a warning.
    Right-click **Manather → Open → Open**, or allow it under
    **System Settings → Privacy & Security → Open Anyway**.
 
+> Your data stays on your Mac. Files are copied into the app's sandbox; nothing is uploaded anywhere.
+
 ---
 
-## Getting Started
+## Build from source
 
-Prefer to build it yourself? **Requirements:** macOS 14 (Sonoma) or later, Xcode 16+.
+**Requirements:** macOS 14 (Sonoma)+, Xcode 16+. No external dependencies — pure Apple frameworks.
 
 ```bash
 git clone https://github.com/Manath-iq/Manather.git
@@ -139,12 +157,11 @@ cd Manather
 open manather.xcodeproj
 ```
 
-Press **⌘R** in Xcode to build and run. No external dependencies — everything is built on Apple
-frameworks (SwiftUI, SwiftData, ImageIO, AVFoundation, WebKit).
+Press **⌘R** in Xcode to build and run.
 
 ---
 
-## Tech Stack
+## Under the hood
 
 | Layer | Technology |
 |---|---|
@@ -156,21 +173,18 @@ frameworks (SwiftUI, SwiftData, ImageIO, AVFoundation, WebKit).
 | Web previews | Headless `WKWebView` |
 | Storage | `~/Library/Application Support/ManatherAssets/` |
 
-Files are copied into the app's container; the database stores only relative paths — no memory bloat,
-no broken links when originals move.
+The database stores only **relative paths**, so moving originals never breaks a link and memory stays light.
 
 ---
 
 ## Roadmap
 
-**MVP (now)**
-- [x] Multi-type library: images, video, GIFs, links, snippets
-- [x] Skills & MCP server types
+**Shipped**
+- [x] Multi-type library: images, video, GIFs, links, snippets, skills, MCP servers
 - [x] Color filter, search, sort
-- [x] Projects + Context Pack export
-- [x] Moodboard canvas (Boards) — move / resize / rotate, arrows, PNG export
+- [x] Collections & Projects + **Context Pack** export
+- [x] **Boards** moodboard canvas — move / resize / rotate, arrows, PNG export
 - [x] Continuous integration + one-click `.dmg` releases
-- [ ] App icon polish & screenshots
 
 **Next**
 - [ ] Many-to-many: one asset across multiple projects
@@ -179,13 +193,12 @@ no broken links when originals move.
 - [ ] Project templates (preloaded packs)
 - [ ] Export straight into a git repo
 
-See [`CLAUDE.md`](CLAUDE.md) for the full product spec.
-
 ---
 
 ## Contributing
 
-This is an early-stage MVP and ideas are welcome. Open an issue to discuss a feature, or send a PR.
+Early-stage and ideas are welcome — [open an issue](https://github.com/Manath-iq/Manather/issues) to
+discuss a feature, or send a PR. Every push is built by CI, so you'll know instantly if it compiles.
 
 ## License
 
