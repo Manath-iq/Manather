@@ -25,14 +25,6 @@ struct BoardTextToolbar: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            // Font (placeholder — system font for now).
-            Text("Sans")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.white.opacity(0.8))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 5)
-                .background(RoundedRectangle(cornerRadius: 6).fill(Color.white.opacity(0.08)))
-
             sizeStepper
             divider
 

@@ -243,14 +243,37 @@ struct BoardView: View {
         let items = board.items
         guard !items.isEmpty else { return }
 
-        let padding: CGFloat = 40
-        let minX = CGFloat(items.map { $0.x }.min() ?? 0)
-        let minY = CGFloat(items.map { $0.y }.min() ?? 0)
-        let maxX = CGFloat(items.map { $0.x + $0.width }.max() ?? 0)
-        let maxY = CGFloat(items.map { $0.y + $0.height }.max() ?? 0)
+        let padding: CGFloat = 50
 
-        let origin = CGPoint(x: minX - padding, y: minY - padding)
-        let size = CGSize(width: (maxX - minX) + padding * 2, height: (maxY - minY) + padding * 2)
+        // Compute the axis-aligned bounding box of every item accounting for
+        // rotation — a rotated rect's extent is wider/taller than its raw w/h.
+        var globalMinX = CGFloat.greatestFiniteMagnitude
+        var globalMinY = CGFloat.greatestFiniteMagnitude
+        var globalMaxX = -CGFloat.greatestFiniteMagnitude
+        var globalMaxY = -CGFloat.greatestFiniteMagnitude
+
+        for item in items {
+            let cx = CGFloat(item.x) + CGFloat(item.width) / 2
+            let cy = CGFloat(item.y) + CGFloat(item.height) / 2
+            let w  = CGFloat(item.width)
+            let h  = CGFloat(item.height)
+            let θ  = CGFloat(item.rotation) * .pi / 180
+
+            // Half-extents of the rotated rect projected onto the canvas axes.
+            let halfW = (abs(w * cos(θ)) + abs(h * sin(θ))) / 2
+            let halfH = (abs(w * sin(θ)) + abs(h * cos(θ))) / 2
+
+            globalMinX = min(globalMinX, cx - halfW)
+            globalMinY = min(globalMinY, cy - halfH)
+            globalMaxX = max(globalMaxX, cx + halfW)
+            globalMaxY = max(globalMaxY, cy + halfH)
+        }
+
+        let origin = CGPoint(x: globalMinX - padding, y: globalMinY - padding)
+        let size = CGSize(
+            width:  (globalMaxX - globalMinX) + padding * 2,
+            height: (globalMaxY - globalMinY) + padding * 2
+        )
         guard size.width > 1, size.height > 1 else { return }
 
         let renderer = ImageRenderer(
@@ -289,7 +312,9 @@ struct BoardView: View {
         let pan = vm.pan
         let centerX = (CGFloat(item.x) + CGFloat(item.width) / 2) * zoom + pan.width
         let topY = CGFloat(item.y) * zoom + pan.height
-        let y = max(96, topY - 26)
+        // The rotation handle knob sits 22 pt above the item's top edge; push the
+        // toolbar far enough above that so it never covers the handle.
+        let y = max(60, topY - 54)
         let maxX = max(150, vm.viewportSize.width - 150)
         let x = min(max(centerX, 150), maxX)
         return CGPoint(x: x, y: y)
