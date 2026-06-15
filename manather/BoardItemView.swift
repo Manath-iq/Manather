@@ -341,7 +341,12 @@ struct BoardItemView: View {
     // MARK: - Gestures
 
     private var moveGesture: some Gesture {
-        DragGesture(minimumDistance: 0)
+        // Measure the drag in the window's coordinate space, NOT the item's own
+        // (.local) space. The item moves while you drag it (via .position), so a
+        // .local gesture's origin moves too — that feedback loop made dragging
+        // stutter and the item jump to the wrong spot on release. .global is
+        // fixed on screen, so the reported translation is the true pointer move.
+        DragGesture(minimumDistance: 0, coordinateSpace: .global)
             .onChanged { value in
                 if !isDragging {
                     isDragging = true
@@ -365,7 +370,9 @@ struct BoardItemView: View {
     }
 
     private func resizeGesture(_ corner: Corner) -> some Gesture {
-        DragGesture(minimumDistance: 0)
+        // Same reasoning as moveGesture: the handle rides along with the item as
+        // it resizes, so measure in the fixed .global space to avoid feedback.
+        DragGesture(minimumDistance: 0, coordinateSpace: .global)
             .onChanged { value in
                 if resizingCorner == nil {
                     resizingCorner = corner
