@@ -17,6 +17,7 @@ struct NewCollectionSheet: View {
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @AppStorage("isDarkMode") private var isDarkMode = false
 
     @State private var name = ""
     @FocusState private var isFocused: Bool
@@ -37,7 +38,7 @@ struct NewCollectionSheet: View {
                     .foregroundStyle(ManatherTheme.accent)
                 Text("New Collection")
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(ManatherTheme.ink)
             }
             .frame(maxWidth: .infinity, alignment: .center)
             .padding(.bottom, 4)
@@ -46,7 +47,7 @@ struct NewCollectionSheet: View {
             TextField("e.g. Landing pages, Color mood, Buttons", text: $name)
                 .textFieldStyle(.plain)
                 .font(.system(size: 13))
-                .foregroundStyle(.white)
+                .foregroundStyle(ManatherTheme.ink)
                 .focused($isFocused)
                 .onSubmit { create() }
                 .padding(8)
@@ -55,11 +56,11 @@ struct NewCollectionSheet: View {
             if isDuplicate {
                 Text("A collection with this name already exists.")
                     .font(.system(size: 11))
-                    .foregroundStyle(Color(red: 0.95, green: 0.55, blue: 0.4))
+                    .foregroundStyle(Color(red: 0.90, green: 0.45, blue: 0.30))
             } else {
                 Text("You can add saves to it now or later.")
                     .font(.system(size: 11))
-                    .foregroundStyle(.white.opacity(0.4))
+                    .foregroundStyle(ManatherTheme.mutedInk)
             }
 
             HStack(spacing: 12) {
@@ -67,23 +68,23 @@ struct NewCollectionSheet: View {
                 Button("Cancel") { dismiss() }
                     .buttonStyle(.microAnimated)
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.7))
+                    .foregroundStyle(ManatherTheme.ink.opacity(0.75))
                     .padding(.horizontal, 16)
                     .padding(.vertical, 6)
                     .background(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .fill(Color.white.opacity(0.10))
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .fill(isDarkMode ? Color.white.opacity(0.10) : Color.black.opacity(0.06))
                     )
 
                 Button("Create") { create() }
                     .buttonStyle(.microAnimated)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.white)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(canCreate ? .white : ManatherTheme.mutedInk)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 6)
                     .background(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .fill(canCreate ? ManatherTheme.accent : Color.white.opacity(0.12))
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .fill(canCreate ? ManatherTheme.accent : (isDarkMode ? Color.white.opacity(0.10) : Color.black.opacity(0.06)))
                     )
                     .disabled(!canCreate)
             }
@@ -92,8 +93,14 @@ struct NewCollectionSheet: View {
         .padding(20)
         .frame(width: 440)
         .background(
-            VisualEffectView(material: .hudWindow, blendingMode: .withinWindow, forceDark: true)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(ManatherTheme.paper)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(ManatherTheme.hairline, lineWidth: 1)
+                )
         )
+        .preferredColorScheme(isDarkMode ? .dark : .light)
         .onAppear { isFocused = true }
     }
 
@@ -102,18 +109,18 @@ struct NewCollectionSheet: View {
     }
 
     private var fieldBackground: some View {
-        RoundedRectangle(cornerRadius: 6, style: .continuous)
-            .fill(ManatherTheme.viewerField)
+        RoundedRectangle(cornerRadius: 7, style: .continuous)
+            .fill(isDarkMode ? Color.white.opacity(0.06) : Color.black.opacity(0.04))
             .overlay(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .stroke(ManatherTheme.viewerBorder, lineWidth: 1)
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .stroke(ManatherTheme.hairline, lineWidth: 1)
             )
     }
 
     private func fieldLabel(_ text: String) -> some View {
         Text(text)
             .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(.white.opacity(0.62))
+            .foregroundStyle(ManatherTheme.mutedInk)
             .textCase(.uppercase)
             .tracking(0.7)
     }

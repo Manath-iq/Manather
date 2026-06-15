@@ -128,110 +128,84 @@ struct AssetCardView: View {
         }
     }
 
-    // MARK: - MCP Server Card
+    // MARK: - MCP Server / Skill cards
+    //
+    // Both are "tool" assets with no visual of their own, so we give them a clean
+    // square card: a tinted app-icon-style tile that signals the type at a glance,
+    // a small type label, and the name. No command/JSON preview — that lives in
+    // the detail view. Teal = MCP (+ a live status dot), amber = Skill.
 
     private var mcpServerCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                Image(systemName: "server.rack")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(ManatherTheme.accent)
-                Text("MCP SERVER")
-                    .font(.system(size: 8, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.45))
-                    .tracking(0.8)
-                Spacer()
-                Circle()
-                    .fill(Color.green.opacity(0.8))
-                    .frame(width: 6, height: 6)
-            }
-
-            Text(asset.title)
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(.white)
-                .lineLimit(1)
-
-            if let command = asset.codeLanguage, !command.isEmpty {
-                Text(command)
-                    .font(.system(size: 9, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.55))
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
-                    .padding(6)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(
-                        RoundedRectangle(cornerRadius: 5, style: .continuous)
-                            .fill(Color.black.opacity(0.35))
-                    )
-            }
-
-            if !asset.notes.isEmpty {
-                Text(asset.notes)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.white.opacity(0.5))
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(12)
-        .frame(height: 110)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            LinearGradient(
-                colors: [
-                    Color(red: 0.10, green: 0.12, blue: 0.15),
-                    Color(red: 0.07, green: 0.08, blue: 0.10)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        )
+        toolCard(icon: "server.rack",
+                 typeLabel: "MCP SERVER",
+                 tint: ManatherTheme.accent)
     }
 
-    // MARK: - Skill Card
-
     private var skillCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                Image(systemName: "sparkles.rectangle.stack")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Color(red: 0.85, green: 0.65, blue: 0.30))
-                Text("SKILL")
-                    .font(.system(size: 8, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.45))
-                    .tracking(0.8)
-                Spacer()
+        toolCard(icon: "sparkles.rectangle.stack",
+                 typeLabel: "SKILL",
+                 tint: Color(red: 0.85, green: 0.62, blue: 0.28))
+    }
+
+    private func toolCard(icon: String, typeLabel: String, tint: Color) -> some View {
+        let nameColor = isDarkMode ? Color.white : Color.black.opacity(0.85)
+
+        // Centered composition: icon tile in the upper third, the type label +
+        // name in the lower third. Even spacers keep it balanced (no empty gap).
+        return VStack(spacing: 0) {
+            Spacer(minLength: 0)
+
+            ZStack {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [tint, tint.opacity(0.7)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 74, height: 74)
+                    .shadow(color: tint.opacity(0.38), radius: 13, x: 0, y: 7)
+
+                Image(systemName: icon)
+                    .font(.system(size: 32, weight: .semibold))
+                    .foregroundStyle(.white)
             }
 
-            Text(asset.title)
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(.white)
-                .lineLimit(1)
+            Spacer(minLength: 0)
 
-            Text(asset.codeContent ?? "")
-                .font(.system(size: 9, design: .monospaced))
-                .foregroundStyle(.white.opacity(0.55))
-                .lineLimit(4)
-                .multilineTextAlignment(.leading)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(spacing: 5) {
+                Text(typeLabel)
+                    .font(.system(size: 9.5, weight: .bold))
+                    .tracking(1.4)
+                    .foregroundStyle(tint)
+
+                Text(asset.title)
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundStyle(nameColor)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             Spacer(minLength: 0)
         }
-        .padding(12)
-        .frame(height: 110)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
+        .padding(16)
+        .frame(maxWidth: .infinity)
+        .aspectRatio(1, contentMode: .fit)
+        .background(toolCardBackground(tint: tint))
+    }
+
+    private func toolCardBackground(tint: Color) -> some View {
+        ZStack {
+            (isDarkMode ? Color.white.opacity(0.04) : Color.white.opacity(0.55))
+            // Soft glow of the type color from the top, behind the centered icon.
             LinearGradient(
-                colors: [
-                    Color(red: 0.13, green: 0.11, blue: 0.08),
-                    Color(red: 0.09, green: 0.08, blue: 0.06)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
+                colors: [tint.opacity(isDarkMode ? 0.13 : 0.10), .clear],
+                startPoint: .top,
+                endPoint: .center
             )
-        )
+        }
     }
 
     // MARK: - Specialized Bookmark Card

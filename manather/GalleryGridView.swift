@@ -64,6 +64,8 @@ struct GalleryGridView: View {
     @State private var showDeleteConfirmation = false
 
     @State private var contextTarget: ContextTarget?
+    /// Whether the custom "+" (add) menu is open.
+    @State private var showAddMenu = false
 
     // Boards tab: all boards the user created (across projects).
     @Query(sort: \Board.dateModified, order: .reverse) private var allBoards: [Board]
@@ -250,6 +252,12 @@ struct GalleryGridView: View {
                 contextMenuOverlay(target)
             }
 
+            // Custom "+" add menu (same style as the right-click menu).
+            if showAddMenu {
+                addMenuOverlay
+                    .zIndex(12)
+            }
+
             // A board opened from the Boards tab.
             if let board = openBoard {
                 BoardView(board: board) {
@@ -279,6 +287,12 @@ struct GalleryGridView: View {
         .onDrop(of: [.image, .movie, .fileURL], isTargeted: $isDropTargeted) { providers in
             handleDrop(providers: providers)
             return true
+        }
+        // ⌘V — smart-paste whatever is on the clipboard straight into the library.
+        // Fires only when a text field isn't the paste target, so search/inputs
+        // keep their own paste behaviour.
+        .onPasteCommand(of: [UTType.fileURL, UTType.image, UTType.url, UTType.plainText]) { _ in
+            AssetIngest.ingestPasteboard(.general, into: modelContext)
         }
         .fileImporter(
             isPresented: $isImporting,
@@ -576,9 +590,6 @@ struct GalleryGridView: View {
 
     private var rightToolbarIcons: some View {
         HStack(spacing: 6) {
-            toolbarIconButton(icon: "safari", tooltip: "Add Web Link") {
-                showWebLinkSheet = true
-            }
             toolbarIconButton(icon: isDarkMode ? "sun.max.fill" : "moon", tooltip: "Toggle Dark Mode") {
                 withAnimation(.easeInOut(duration: 0.2)) {
                     isDarkMode.toggle()
@@ -642,11 +653,15 @@ struct GalleryGridView: View {
             .buttonStyle(.plain)
             .font(.system(size: 11, weight: .medium))
             .foregroundStyle(ManatherTheme.accent)
-            
-            Spacer()
+
+            Divider()
+
+            HotKeyRecorderView()
+
+            Spacer(minLength: 0)
         }
         .padding(16)
-        .frame(width: 200, height: 180)
+        .frame(width: 248, height: 300)
     }
 
     private func loadDemoAssets() {
@@ -696,13 +711,8 @@ struct GalleryGridView: View {
     @State private var isFABHovered = false
 
     private var addFAB: some View {
-        Menu {
-            Button { isImporting = true } label: { Label("Import files", systemImage: "doc.badge.plus") }
-            Button { showWebLinkSheet = true } label: { Label("Add web link", systemImage: "link") }
-            Button { showCodeSnippetSheet = true } label: { Label("Add code snippet", systemImage: "curlybraces") }
-            Divider()
-            Button { showSkillSheet = true } label: { Label("Add skill", systemImage: "sparkles.rectangle.stack") }
-            Button { showMCPServerSheet = true } label: { Label("Add MCP server", systemImage: "server.rack") }
+        Button {
+            withAnimation(ManatherTheme.overlayMotion) { showAddMenu.toggle() }
         } label: {
             ZStack {
                 Circle()
@@ -711,19 +721,50 @@ struct GalleryGridView: View {
                     .shadow(color: Color.black.opacity(0.08), radius: 2, x: 0, y: 1)
 
                 Image(systemName: "plus")
-                    .font(.system(size: 20, weight: .medium))
+                    .font(.system(size: 24, weight: .medium))
                     .foregroundStyle(isDarkMode ? Color.black : Color.white)
+                    // Spin into an "×" while the menu is open.
+                    .rotationEffect(.degrees(showAddMenu ? 45 : 0))
             }
-            .frame(width: 48, height: 48)
-            .scaleEffect(isFABHovered ? 1.08 : 1.0)
+            .frame(width: 58, height: 58)
+            .scaleEffect(isFABHovered ? 1.06 : 1.0)
             .animation(.spring(response: 0.28, dampingFraction: 0.65), value: isFABHovered)
+            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: showAddMenu)
         }
-        .menuStyle(.borderlessButton)
+        .buttonStyle(.plain)
         .focusable(false)
-        .fixedSize()
         .onHover { hovering in
             isFABHovered = hovering
         }
+    }
+
+    /// Dimmed backdrop + custom add menu anchored just above the FAB.
+    private var addMenuOverlay: some View {
+        ZStack(alignment: .bottomTrailing) {
+            Color.black.opacity(0.18)
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture { closeAddMenu() }
+
+            AddMenuView(
+                isDarkMode: isDarkMode,
+                onDismiss: { closeAddMenu() },
+                onImport: { isImporting = true },
+                onWebLink: { showWebLinkSheet = true },
+                onCodeSnippet: { showCodeSnippetSheet = true },
+                onSkill: { showSkillSheet = true },
+                onMCPServer: { showMCPServerSheet = true }
+            )
+            // Sit above the 58pt FAB (28pt bottom inset + height + gap).
+            .padding(.trailing, 28)
+            .padding(.bottom, 28 + 58 + 12)
+            .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .bottomTrailing)))
+        }
+        .onExitCommand { closeAddMenu() }
+    }
+
+    private func closeAddMenu() {
+        withAnimation(.easeOut(duration: 0.14)) { showAddMenu = false }
     }
 
     private var categoryTabs: some View {
@@ -1301,6 +1342,21 @@ struct GalleryGridView: View {
 
     // MARK: - Masonry Grid
 
+    /// Pixel size for the thumbnail's longest edge so the card's WIDTH renders
+    /// crisply. `kCGImageSourceThumbnailMaxPixelSize` caps the LONGEST side, but
+    /// the masonry column constrains width — so a tall image needs a larger cap
+    /// (its height) to avoid being upscaled and looking soft. Landscape images
+    /// keep a small cap, so memory stays proportional to the pixels we actually
+    /// show. The result is quantized into a few buckets so the thumbnail cache
+    /// stays reusable instead of regenerating on every tiny resize.
+    private func thumbnailMaxSize(colWidth: CGFloat, aspectRatio: CGFloat) -> CGFloat {
+        let widthPx = colWidth * displayScale
+        // Longest side in pixels: width for landscape, height (= widthPx / ar) for portrait.
+        let longestPx = widthPx * max(1, 1 / max(aspectRatio, 0.01))
+        let buckets: [CGFloat] = [300, 500, 800, 1200, 1600, 2200, 3000]
+        return buckets.first(where: { $0 >= longestPx }) ?? buckets.last!
+    }
+
     private func masonryGrid(_ items: [AssetItem], showsCollectionRow: Bool = true) -> some View {
         GeometryReader { geometry in
             let spacing: CGFloat = 14
@@ -1308,24 +1364,6 @@ struct GalleryGridView: View {
             
             // Calculate column width in points
             let colWidth = max(100, (geometry.size.width - CGFloat(columns.count - 1) * spacing - 40) / CGFloat(columns.count))
-            
-            // Calculate raw pixel size using screen scaling
-            let rawPixelSize = colWidth * displayScale
-            
-            // Determine target maximum image size, quantized for caching efficiency
-            let targetMaxSize: CGFloat = {
-                if rawPixelSize <= 300 {
-                    return 300
-                } else if rawPixelSize <= 500 {
-                    return 500
-                } else if rawPixelSize <= 800 {
-                    return 800
-                } else if rawPixelSize <= 1200 {
-                    return 1200
-                } else {
-                    return 1600
-                }
-            }()
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
@@ -1343,7 +1381,7 @@ struct GalleryGridView: View {
                                     asset: asset,
                                     isSelected: selectedAsset?.id == asset.id,
                                     isTrashView: isTrashView,
-                                    maxImageSize: targetMaxSize,
+                                    maxImageSize: thumbnailMaxSize(colWidth: colWidth, aspectRatio: asset.aspectRatio),
                                     onSelect: {
                                         // Animation is driven once by ContentView's
                                         // .animation(value: selectedAsset != nil).
@@ -1558,56 +1596,8 @@ struct GalleryGridView: View {
     }
 
     private func importFile(from url: URL) {
-        Task {
-            let type = FileManagerHelper.detectAssetType(for: url)
-
-            var codeContent: String? = nil
-            var codeLanguage: String? = nil
-
-            if type == "codeSnippet" {
-                let accessing = url.startAccessingSecurityScopedResource()
-                defer {
-                    if accessing {
-                        url.stopAccessingSecurityScopedResource()
-                    }
-                }
-                codeContent = try? String(contentsOf: url, encoding: .utf8)
-                codeLanguage = url.pathExtension.capitalized
-            }
-
-            // Get dimensions before copying (while we have security access)
-            let dims = await FileManagerHelper.imageDimensions(from: url)
-
-            guard let relativePath = FileManagerHelper.copyFileToSandbox(from: url) else {
-                return
-            }
-
-            let title = FileManagerHelper.displayName(from: url)
-            
-            let finalDims: (width: Double, height: Double)?
-            if let dims = dims {
-                finalDims = dims
-            } else {
-                finalDims = await FileManagerHelper.imageDimensions(relativePath: relativePath)
-            }
-
-            await MainActor.run {
-                let asset = AssetItem(
-                    title: title,
-                    relativeFilePath: relativePath,
-                    imageWidth: finalDims?.width ?? 0,
-                    imageHeight: finalDims?.height ?? 0,
-                    typeRaw: type,
-                    codeLanguage: codeLanguage,
-                    codeContent: codeContent
-                )
-                withAnimation(.spring(response: 0.4)) {
-                    modelContext.insert(asset)
-                }
-                // Index palette right away so color filters pick it up
-                ColorIndexer.shared.ensureColors(for: asset)
-            }
-        }
+        // Shared with drag & drop, ⌘V paste and the screenshot hotkey.
+        AssetIngest.ingestFile(at: url, into: modelContext)
     }
 
     private func moveAssetToTrash(_ asset: AssetItem) {
@@ -1636,6 +1626,7 @@ struct GalleryGridView: View {
 
                 AssetContextMenuView(
                     asset: target.asset,
+                    isDarkMode: isDarkMode,
                     collections: collectionNames,
                     onCreateCollection: { createCollectionEntity($0) },
                     isTrash: isTrashView,

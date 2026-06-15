@@ -212,6 +212,35 @@ struct LibraryAmbientBackground: View {
     }
 }
 
+/// Rescues the window onto whatever display the user is actually looking at.
+/// On a multi-monitor setup SwiftUI tends to (re)open the window on the last
+/// "active" screen — which may be a monitor the user isn't watching, making the
+/// app seem to "not show up". On launch we bring the window to front and, if it
+/// isn't on the screen under the cursor, recenter it there. If it's already on
+/// the cursor's screen we leave the user's manual placement alone.
+private struct WindowConfigurator: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async {
+            guard let window = view.window else { return }
+            let mouse = NSEvent.mouseLocation
+            let cursorScreen = NSScreen.screens.first { $0.frame.contains(mouse) }
+            if let screen = cursorScreen, !window.frame.intersects(screen.frame) {
+                let vf = screen.visibleFrame
+                var frame = window.frame
+                frame.origin.x = vf.midX - frame.width / 2
+                frame.origin.y = vf.midY - frame.height / 2
+                window.setFrame(frame, display: true)
+            }
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {}
+}
+
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \AssetItem.dateAdded, order: .reverse) private var allAssets: [AssetItem]
@@ -219,6 +248,13 @@ struct ContentView: View {
     @AppStorage("isDarkMode") private var isDarkMode = false
     // Global UI zoom (⌘+ / ⌘- / ⌘0), like Notes or Messages.
     @AppStorage("uiZoom") private var uiZoom: Double = 1.0
+
+    // Global screenshot hotkey (configurable in Settings). Defaults to ⌘⇧7
+    // (keyCode 26 = "7", modifiers cmd|shift = 768). System-wide capture.
+    @AppStorage("screenshotHotKeyEnabled") private var screenshotHotKeyEnabled = true
+    @AppStorage("screenshotHotKeyCode") private var screenshotHotKeyCode = 26
+    @AppStorage("screenshotHotKeyModifiers") private var screenshotHotKeyModifiers = 768
+
     @Namespace private var galleryNamespace
 
     @State private var selectedCategory: SidebarCategory = .all
@@ -250,6 +286,7 @@ struct ContentView: View {
             .clipped()
             .animation(ManatherTheme.uiMotion, value: uiZoom)
         }
+        .background(WindowConfigurator())
         .ignoresSafeArea()
         .focusEffectDisabled()
         // Single source of truth for the viewer open/close animation —
@@ -259,6 +296,21 @@ struct ContentView: View {
         .onChange(of: selectedCategory) { _, _ in
             selectedAsset = nil
         }
+        .onAppear { configureScreenshotHotKey() }
+        .onChange(of: screenshotHotKeyEnabled) { _, _ in configureScreenshotHotKey() }
+        .onChange(of: screenshotHotKeyCode) { _, _ in configureScreenshotHotKey() }
+        .onChange(of: screenshotHotKeyModifiers) { _, _ in configureScreenshotHotKey() }
+    }
+
+    private func configureScreenshotHotKey() {
+        GlobalHotKeyManager.shared.onTrigger = {
+            ScreenshotCapture.captureInteractive(into: modelContext)
+        }
+        GlobalHotKeyManager.shared.update(
+            keyCode: screenshotHotKeyCode,
+            carbonModifiers: screenshotHotKeyModifiers,
+            enabled: screenshotHotKeyEnabled
+        )
     }
 }
 

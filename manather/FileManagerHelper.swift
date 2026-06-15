@@ -21,7 +21,7 @@ final class ImageCache {
 
     private init() {
         thumbnailCache.countLimit = 200
-        thumbnailCache.totalCostLimit = 60 * 1024 * 1024 // 60 MB
+        thumbnailCache.totalCostLimit = 150 * 1024 * 1024 // 150 MB
 
         fullImageCache.countLimit = 10
         fullImageCache.totalCostLimit = 100 * 1024 * 1024 // 100 MB
@@ -153,7 +153,7 @@ final class ImageCache {
         if let cached = cachedFullImage(for: relativePath) {
             return cached
         }
-        let sizes = [1600, 1200, 800, 500, 300, 200, 100]
+        let sizes = [3000, 2200, 1600, 1200, 800, 500, 300, 200, 100]
         for size in sizes {
             let key = "\(relativePath)_\(size)" as NSString
             if let cached = thumbnailCache.object(forKey: key) {
@@ -172,7 +172,7 @@ final class ImageCache {
         let fullKey = relativePath as NSString
         fullImageCache.removeObject(forKey: fullKey)
         
-        let sizes = [1600, 1200, 800, 700, 500, 400, 300, 200, 100]
+        let sizes = [3000, 2200, 1600, 1200, 800, 700, 500, 400, 300, 200, 100]
         for size in sizes {
             let thumbKey = "\(relativePath)_\(size)" as NSString
             thumbnailCache.removeObject(forKey: thumbKey)
@@ -323,6 +323,29 @@ struct FileManagerHelper {
             return destinationName
         } catch {
             print("Failed to copy file: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    /// Writes raw image data (e.g. a pasted bitmap or a screenshot) into the
+    /// sandbox under a unique file name and returns the relative path.
+    static func saveImageData(_ data: Data, baseName: String, ext: String) -> String? {
+        let safeBase = baseName.isEmpty ? "Image" : baseName
+        var name = "\(safeBase).\(ext)"
+        var destinationURL = assetsDirectory.appendingPathComponent(name)
+
+        var counter = 1
+        while FileManager.default.fileExists(atPath: destinationURL.path) {
+            name = "\(safeBase) \(counter).\(ext)"
+            destinationURL = assetsDirectory.appendingPathComponent(name)
+            counter += 1
+        }
+
+        do {
+            try data.write(to: destinationURL)
+            return name
+        } catch {
+            print("Failed to save image data: \(error.localizedDescription)")
             return nil
         }
     }

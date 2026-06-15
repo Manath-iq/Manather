@@ -78,12 +78,97 @@ struct AssetMenuItem: Identifiable {
     var action: () -> Void
 }
 
+// MARK: - Shared menu palette + chrome
+
+/// All colors for the floating menus, derived from the current theme so the
+/// same panel works in both dark and light mode.
+struct MenuPalette {
+    let isDarkMode: Bool
+
+    var panel: Color { isDarkMode ? Color(red: 0.14, green: 0.14, blue: 0.155) : Color.white }
+    var stroke: Color { isDarkMode ? Color.white.opacity(0.10) : Color.black.opacity(0.08) }
+    var shadow: Color { Color.black.opacity(isDarkMode ? 0.40 : 0.16) }
+    var label: Color { isDarkMode ? .white : Color(red: 0.11, green: 0.11, blue: 0.13) }
+    var icon: Color { label.opacity(0.85) }
+    var hover: Color { isDarkMode ? Color.white.opacity(0.10) : Color.black.opacity(0.06) }
+    var divider: Color { isDarkMode ? Color.white.opacity(0.07) : Color.black.opacity(0.07) }
+    var secondary: Color { label.opacity(isDarkMode ? 0.35 : 0.4) }
+    var destructive: Color { Color(red: 0.92, green: 0.30, blue: 0.28) }
+}
+
+private extension View {
+    /// Applies the rounded panel background, border and shadow shared by both menus.
+    func menuPanelChrome(_ palette: MenuPalette) -> some View {
+        self
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(palette.panel)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(palette.stroke, lineWidth: 1)
+            )
+            .shadow(color: palette.shadow, radius: 22, x: 0, y: 12)
+    }
+}
+
+/// A thin separator used between groups of rows.
+private struct MenuDivider: View {
+    let palette: MenuPalette
+    var body: some View {
+        Rectangle()
+            .fill(palette.divider)
+            .frame(height: 1)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 2)
+    }
+}
+
+// MARK: - Add (+) menu
+
+/// The styled menu shown by the floating "+" button. Same look as the
+/// right-click menu, themed for light/dark.
+struct AddMenuView: View {
+    let isDarkMode: Bool
+    let onDismiss: () -> Void
+    let onImport: () -> Void
+    let onWebLink: () -> Void
+    let onCodeSnippet: () -> Void
+    let onSkill: () -> Void
+    let onMCPServer: () -> Void
+
+    private var palette: MenuPalette { MenuPalette(isDarkMode: isDarkMode) }
+
+    var body: some View {
+        VStack(spacing: 2) {
+            row("Import files", "doc.badge.plus", onImport)
+            row("Add web link", "link", onWebLink)
+            row("Add code snippet", "curlybraces", onCodeSnippet)
+            MenuDivider(palette: palette)
+            row("Add skill", "sparkles.rectangle.stack", onSkill)
+            row("Add MCP server", "server.rack", onMCPServer)
+        }
+        .padding(6)
+        .frame(width: 220)
+        .menuPanelChrome(palette)
+        .fixedSize()
+    }
+
+    private func row(_ title: String, _ image: String, _ action: @escaping () -> Void) -> some View {
+        ContextMenuRow(
+            item: AssetMenuItem(title: title, systemImage: image) { action(); onDismiss() },
+            palette: palette
+        )
+    }
+}
+
 // MARK: - Menu panel
 
 /// The styled dark menu panel. Supports a main page plus "Add to collection /
 /// project" sub-pages so we never need floating native submenus.
 struct AssetContextMenuView: View {
     let asset: AssetItem
+    let isDarkMode: Bool
     let collections: [String]
     /// Create a brand-new collection object with this name (the row also assigns
     /// the asset to it). Lets you make a collection straight from the right-click
@@ -105,6 +190,8 @@ struct AssetContextMenuView: View {
     private enum Page { case main, collections }
     @State private var page: Page = .main
 
+    private var palette: MenuPalette { MenuPalette(isDarkMode: isDarkMode) }
+
     // Inline "New collection…" field state (collections sub-page).
     @State private var isCreatingCollection = false
     @State private var newCollectionName = ""
@@ -119,15 +206,7 @@ struct AssetContextMenuView: View {
         }
         .padding(6)
         .frame(width: 232)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(red: 0.14, green: 0.14, blue: 0.155))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.white.opacity(0.10), lineWidth: 1)
-        )
-        .shadow(color: Color.black.opacity(0.40), radius: 22, x: 0, y: 12)
+        .menuPanelChrome(palette)
         .fixedSize()
     }
 
@@ -196,7 +275,7 @@ struct AssetContextMenuView: View {
                     .font(.system(size: 12, weight: .semibold))
                 Spacer()
             }
-            .foregroundStyle(.white.opacity(0.55))
+            .foregroundStyle(palette.label.opacity(0.55))
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
             .contentShape(Rectangle())
@@ -221,7 +300,7 @@ struct AssetContextMenuView: View {
         if options.isEmpty {
             Text("No \(title.contains("Collection") ? "collections" : "projects") yet")
                 .font(.system(size: 12))
-                .foregroundStyle(.white.opacity(0.35))
+                .foregroundStyle(palette.secondary)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 8)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -245,13 +324,13 @@ struct AssetContextMenuView: View {
         HStack(spacing: 10) {
             Image(systemName: "folder.badge.plus")
                 .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.white.opacity(0.85))
+                .foregroundStyle(palette.icon)
                 .frame(width: 18, alignment: .center)
 
             TextField("Name", text: $newCollectionName)
                 .textFieldStyle(.plain)
                 .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.white)
+                .foregroundStyle(palette.label)
                 .focused($newCollectionFocused)
                 .onSubmit { commitNewCollection(assign: assign) }
         }
@@ -275,24 +354,21 @@ struct AssetContextMenuView: View {
     // MARK: Pieces
 
     private var divider: some View {
-        Rectangle()
-            .fill(Color.white.opacity(0.07))
-            .frame(height: 1)
-            .padding(.horizontal, 4)
-            .padding(.vertical, 2)
+        MenuDivider(palette: palette)
     }
 
     private func row(_ item: AssetMenuItem) -> some View {
-        ContextMenuRow(item: item)
+        ContextMenuRow(item: item, palette: palette)
     }
 }
 
-private struct ContextMenuRow: View {
+struct ContextMenuRow: View {
     let item: AssetMenuItem
+    let palette: MenuPalette
     @State private var isHovered = false
 
     private var tint: Color {
-        item.isDestructive ? Color(red: 0.95, green: 0.36, blue: 0.34) : .white
+        item.isDestructive ? palette.destructive : palette.label
     }
 
     var body: some View {
@@ -300,7 +376,7 @@ private struct ContextMenuRow: View {
             HStack(spacing: 10) {
                 Image(systemName: item.systemImage)
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(tint.opacity(item.isDestructive ? 0.95 : 0.85))
+                    .foregroundStyle(item.isDestructive ? tint.opacity(0.95) : palette.icon)
                     .frame(width: 18, alignment: .center)
 
                 Text(item.title)
@@ -312,7 +388,7 @@ private struct ContextMenuRow: View {
                 if item.showsChevron {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.35))
+                        .foregroundStyle(palette.secondary)
                 }
             }
             .padding(.horizontal, 10)
@@ -320,7 +396,7 @@ private struct ContextMenuRow: View {
             .background(
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
                     .fill(isHovered
-                          ? (item.isDestructive ? tint.opacity(0.16) : Color.white.opacity(0.10))
+                          ? (item.isDestructive ? tint.opacity(0.16) : palette.hover)
                           : Color.clear)
             )
             .contentShape(Rectangle())

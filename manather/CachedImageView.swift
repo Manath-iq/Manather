@@ -58,7 +58,7 @@ struct CachedImageView: View {
             return cached
         }
         guard let maxSize = maxSize else { return nil }
-        let sizes: [CGFloat] = [1600, 1200, 800, 500, 300, 200, 100]
+        let sizes: [CGFloat] = [3000, 2200, 1600, 1200, 800, 500, 300, 200, 100]
         for size in sizes where size >= maxSize {
             if let cached = ImageCache.shared.cachedThumbnail(for: relativePath, maxSize: size) {
                 return cached
