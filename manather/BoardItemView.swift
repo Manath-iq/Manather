@@ -277,6 +277,20 @@ struct BoardItemView: View {
                         .scrollContentBackground(.hidden)
                         .background(Color.clear)
                         .tint(ManatherTheme.accent)
+                } else if isNote {
+                    // A note shows its text in a scroll view so text that doesn't
+                    // fit can be read by scrolling — no need to resize the note or
+                    // double-click into edit mode. The canvas forwards wheel events
+                    // to this view when the cursor is over a note (BoardCanvasView).
+                    ScrollView(.vertical) {
+                        Text(displayText)
+                            .font(textFont)
+                            .foregroundStyle(item.text?.isEmpty == false ? textColor : textColor.opacity(0.4))
+                            .multilineTextAlignment(swiftAlignment)
+                            .frame(maxWidth: .infinity, alignment: frameAlignment)
+                    }
+                    .scrollIndicators(.automatic)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     Text(displayText)
                         .font(textFont)

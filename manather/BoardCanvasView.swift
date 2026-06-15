@@ -256,6 +256,12 @@ struct BoardCanvasView: View {
     private func installScrollMonitor() {
         guard scrollMonitor == nil else { return }
         scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { event in
+            // Reading a note: when the cursor is over a note (and not ⌘-zooming),
+            // let the wheel event through so the note's own ScrollView can scroll
+            // its overflowing text, instead of panning the whole canvas.
+            if !event.modifierFlags.contains(.command), isCursorOverNote(event) {
+                return event
+            }
             if event.modifierFlags.contains(.command) {
                 // Zoom toward the cursor.
                 let factor = 1 - event.scrollingDeltaY * 0.01
@@ -277,6 +283,26 @@ struct BoardCanvasView: View {
             NSEvent.removeMonitor(monitor)
             scrollMonitor = nil
         }
+    }
+
+    /// True when the scroll cursor is over a note item, so the note's ScrollView
+    /// can handle the wheel (read overflowing text) rather than panning. Checks
+    /// topmost-first; the canvas fills the window, so screen and canvas-view
+    /// coordinates line up with `cursorPoint`.
+    private func isCursorOverNote(_ event: NSEvent) -> Bool {
+        let point = cursorPoint(for: event)
+        let zoom = vm.zoom
+        let pan = vm.pan
+        for item in board.items.sorted(by: { $0.zIndex > $1.zIndex }) where item.kind == .note {
+            let rect = CGRect(
+                x: CGFloat(item.x) * zoom + pan.width,
+                y: CGFloat(item.y) * zoom + pan.height,
+                width: CGFloat(item.width) * zoom,
+                height: CGFloat(item.height) * zoom
+            )
+            if rect.contains(point) { return true }
+        }
+        return false
     }
 
     /// Best-effort cursor location in this view's coordinate space (top-left
