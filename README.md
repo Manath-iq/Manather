@@ -21,6 +21,14 @@ then export any project as a ready-to-use **context pack** for your AI agent.
   <img src="https://img.shields.io/badge/⬇%20Download%20for%20macOS-Latest%20.dmg-2563eb?style=for-the-badge&logo=apple&logoColor=white" alt="Download the latest macOS .dmg" />
 </a>
 
+<br/>
+
+<a href="https://github.com/Manath-iq/Manather/releases">
+  <img src="https://img.shields.io/github/downloads/Manath-iq/Manather/total?style=flat-square&color=22c55e&label=%E2%AC%87%20downloads%20and%20counting&labelColor=0b1220" alt="Total downloads" />
+</a>
+
+<br/>
+
 <sub>Apple Silicon · macOS 14+ · free & open source — or [build from source](#build-from-source)</sub>
 
 <br/><br/>
@@ -58,14 +66,14 @@ Drag in images, links, snippets, skills, MCP configs. Each asset can carry an **
 <td width="33%" valign="top">
 
 ### 2 · Organize
-Group assets into **Collections** and **Projects**. Find anything fast with **color filters**,
+Group assets into **Collections**. Find anything fast with **color filters**,
 **search**, and a Pinterest-style grid.
 
 </td>
 <td width="33%" valign="top">
 
 ### 3 · Export
-Right-click a project → **Export Context Pack**. Drop the folder in a repo and point Claude Code
+Right-click a collection → **Export Context Pack**. Drop the folder in a repo and point Claude Code
 (or any agent) at it.
 
 </td>
@@ -182,12 +190,12 @@ The database stores only **relative paths**, so moving originals never breaks a 
 **Shipped**
 - [x] Multi-type library: images, video, GIFs, links, snippets, skills, MCP servers
 - [x] Color filter, search, sort
-- [x] Collections & Projects + **Context Pack** export
+- [x] Collections + **Context Pack** export
 - [x] **Boards** moodboard canvas — move / resize / rotate, arrows, PNG export
 - [x] Continuous integration + one-click `.dmg` releases
 
 **Next**
-- [ ] Many-to-many: one asset across multiple projects
+- [ ] Many-to-many: one asset across multiple collections
 - [ ] AI provider: prompt-based image variations, vision auto-tagging, AI-written `CONTEXT.md`
 - [ ] Auto-import skills / MCP configs from `~/.claude/`
 - [ ] Project templates (preloaded packs)
@@ -197,8 +205,14 @@ The database stores only **relative paths**, so moving originals never breaks a 
 
 ## Contributing
 
-Early-stage and ideas are welcome — [open an issue](https://github.com/Manath-iq/Manather/issues) to
-discuss a feature, or send a PR. Every push is built by CI, so you'll know instantly if it compiles.
+Early-stage and ideas are welcome. Open an issue to
+[report a bug](https://github.com/Manath-iq/Manather/issues/new?template=bug_report.yml) or
+[request a feature](https://github.com/Manath-iq/Manather/issues/new?template=feature_request.yml),
+or send a PR — every push is built by CI, so you'll know instantly if it compiles.
+
+See **[CONTRIBUTING.md](.github/CONTRIBUTING.md)** to get started, and the
+**[CHANGELOG](CHANGELOG.md)** for what's new in each release. By participating you agree to
+our **[Code of Conduct](CODE_OF_CONDUCT.md)**.
 
 ## License
 

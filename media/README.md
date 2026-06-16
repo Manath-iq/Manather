@@ -10,6 +10,11 @@ file name**, and it will show up automatically (no edits to `README.md` needed).
 | `library.png` | Features → Library | The masonry grid with the color filter / search bar visible |
 | `board.png` | Features → Boards | A moodboard with a few images, notes, arrows |
 | `detail.png` | Features → Detail view | An asset opened full-screen with the prompt / palette / tags inspector |
+| `demo.gif` _(optional)_ | Top of the README, under the cover | A 5–10s screen recording: drag something in → organize → export a context pack |
+
+> **A short demo GIF converts far better than a static screenshot.** If you add a
+> `demo.gif` here, paste this under the cover image in `README.md`:
+> `<img src="media/demo.gif" width="840" alt="Manather demo" />`
 
 ## Tips for nice screenshots
 - Use a real, filled-in library (not empty) — it looks much more alive.

@@ -1,0 +1,49 @@
+name: 🐛 Bug report
+description: Something isn't working the way it should
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time to report a bug! Please fill in the details below.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug, and what you expected instead.
+      placeholder: When I…, the app…. I expected it to….
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: How can we make the bug happen?
+      placeholder: |
+        1. Open …
+        2. Click …
+        3. See …
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Manather version
+      description: Shown on the GitHub release you downloaded (e.g. v0.1.4), or "built from source".
+      placeholder: v0.1.4
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: macOS 14.5 (Sonoma)
+    validations:
+      required: true
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots or screen recording
+      description: If it's visual, a screenshot or short clip helps a lot. Drag files here.
+    validations:
+      required: false

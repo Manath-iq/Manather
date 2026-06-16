@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Questions & ideas
+    url: https://github.com/Manath-iq/Manather/discussions
+    about: Ask a question or share an idea that isn't a bug or a concrete feature request.

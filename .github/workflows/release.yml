@@ -76,20 +76,45 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Write the release notes to a file first. Passing them inline via
-          # "$(cat <<'EOF' ...)" breaks because bash mis-parses the apostrophe
-          # in "isn't" while scanning the command substitution.
-          cat > dist/notes.md <<'EOF'
-          Manather for macOS (Apple Silicon / arm64).
+          # Build the release notes. We pull the "What's new" section straight
+          # from CHANGELOG.md for this version (heading like "## [0.1.4] — ...")
+          # so every release has real, human-written notes instead of the same
+          # boilerplate. The standard install steps are appended below it.
+          TAG="${{ steps.ver.outputs.tag }}"
+          VERSION="${TAG#v}"   # strip the leading "v" -> matches CHANGELOG heading
 
+          : > dist/notes.md
+          if [ -f CHANGELOG.md ]; then
+            # Print every line after the "## [VERSION]" heading until the next
+            # "## " heading. awk handles this cleanly without sed/regex escaping.
+            awk -v ver="$VERSION" '
+              $0 ~ "^## \\[" ver "\\]" { grab=1; next }
+              grab && /^## / { exit }
+              grab { print }
+            ' CHANGELOG.md > dist/changelog-section.md
+          fi
+
+          if [ -s dist/changelog-section.md ]; then
+            echo "### What's new" >> dist/notes.md
+            # Trim leading/trailing blank lines from the captured section.
+            awk 'NF {p=1} p' dist/changelog-section.md >> dist/notes.md
+            echo "" >> dist/notes.md
+          fi
+
+          # Install instructions live in a quoted heredoc so the apostrophe in
+          # "isn't" doesn't trip up bash.
+          cat >> dist/notes.md <<'EOF'
           ### Install
           1. Download the **.dmg** below.
           2. Open it and drag **Manather** into your Applications folder.
           3. First launch: the app isn't notarized by Apple, so macOS shows a
              warning. Right-click **Manather → Open → Open**, or go to
              **System Settings → Privacy & Security → Open Anyway**.
+
+          _Apple Silicon (arm64) · macOS 14+ · see the full [CHANGELOG](https://github.com/Manath-iq/Manather/blob/main/CHANGELOG.md)._
           EOF
-          gh release create "${{ steps.ver.outputs.tag }}" dist/*.dmg \
-            --title "Manather ${{ steps.ver.outputs.tag }}" \
+
+          gh release create "$TAG" dist/*.dmg \
+            --title "Manather $TAG" \
             --notes-file dist/notes.md \
             --target "${{ github.sha }}"
