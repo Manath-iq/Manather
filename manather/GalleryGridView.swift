@@ -1003,10 +1003,14 @@ struct GalleryGridView: View {
                     }
                     .buttonStyle(.plain)
                     .contextMenu {
-                        Button {
-                            ContextPackExporter.export(projectName: name, assets: items)
+                        Menu {
+                            ForEach(ExportTarget.allCases) { target in
+                                Button(target.menuLabel) {
+                                    ContextPackExporter.export(projectName: name, assets: items, target: target)
+                                }
+                            }
                         } label: {
-                            Label("Export Context Pack", systemImage: "shippingbox.and.arrow.backward")
+                            Label("Export for…", systemImage: "shippingbox.and.arrow.backward")
                         }
                         Divider()
                         Button(role: .destructive) {
@@ -1115,10 +1119,14 @@ struct GalleryGridView: View {
 
                 if !isUnassigned {
                     Menu {
-                        Button {
-                            ContextPackExporter.export(projectName: name, assets: items)
+                        Menu {
+                            ForEach(ExportTarget.allCases) { target in
+                                Button(target.menuLabel) {
+                                    ContextPackExporter.export(projectName: name, assets: items, target: target)
+                                }
+                            }
                         } label: {
-                            Label("Export Context Pack", systemImage: "shippingbox.and.arrow.backward")
+                            Label("Export for…", systemImage: "shippingbox.and.arrow.backward")
                         }
                         Divider()
                         Button(role: .destructive) {
