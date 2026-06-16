@@ -9,6 +9,39 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 _Nothing yet — your next change goes here._
 
+## [0.1.7] — 2026-06-17
+
+### Added
+- **Connect your AI providers (Settings → AI Providers).** The gear icon now opens
+  a proper settings window. Add an API key for OpenRouter, OpenAI, Anthropic,
+  Google Gemini, xAI (Grok), DeepSeek, Mistral or Ollama (local) — keys are stored
+  in your macOS **Keychain**, never in plain text — pick a default model and hit
+  **Test connection** to confirm it works.
+- **CLI Agents tab.** Manather detects which terminal coding agents you have
+  installed (Claude Code, Codex CLI, Antigravity CLI, Gemini CLI) and shows their
+  version, with copy-paste install/sign-in commands for the ones you don't.
+- **Generate variation (for real).** Opening an image, the "Generate variation"
+  button now calls your default provider — Google Gemini makes a true variation of
+  the image; OpenAI generates from its prompt — and adds the result to your
+  library (same collection, tagged "variation").
+- **"Improve with AI" when exporting.** In the export goal box, one click rewrites
+  your rough note into a clear build brief using your default provider, with Undo.
+
+### Changed
+- **Build packs are now a two-tier brief.** Exporting a collection produces a short
+  control file (`CLAUDE.md` / `AGENTS.md` / `README.md`) with a ▶ Start workflow,
+  plus a `context.md` catalog describing every file (description, generation
+  prompt, palette, tags). Media now lives in `images/`. You can also type the
+  project goal at export time, woven in as a 🎯 Goal section.
+- The app no longer runs in the macOS App Sandbox, so it can detect and work with
+  your installed CLI agents.
+
+### Known limitations
+- Ollama (local, `http://localhost`) may be blocked by App Transport Security;
+  cloud providers over HTTPS are unaffected. A follow-up will add the exception.
+- Image variations are wired for OpenAI, xAI and Gemini; other providers show a
+  clear message to switch the default.
+
 ## [0.1.6] — 2026-06-16
 
 ### Added

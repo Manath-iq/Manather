@@ -2,10 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- App Sandbox is intentionally OFF so the app can detect and read the
+	     configs of terminal AI agents (codex/claude/antigravity/gemini) and run
+	     them. This is incompatible with the Mac App Store but fine for the
+	     GitHub/DMG distribution. -->
 	<key>com.apple.security.app-sandbox</key>
-	<true/>
-	<key>com.apple.security.files.user-selected.read-write</key>
-	<true/>
+	<false/>
 	<key>com.apple.security.network.client</key>
 	<true/>
 </dict>

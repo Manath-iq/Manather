@@ -41,6 +41,15 @@ struct ContextTarget {
     let frame: CGRect
 }
 
+/// A pending collection export: which collection, its assets and the chosen
+/// target. Held while the goal sheet is shown, then handed to ContextPackExporter.
+struct PendingExport: Identifiable {
+    let id = UUID()
+    let name: String
+    let assets: [AssetItem]
+    let target: ExportTarget
+}
+
 struct GalleryGridView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.displayScale) private var displayScale
@@ -56,7 +65,7 @@ struct GalleryGridView: View {
     @State private var selectedTab: MainTab = .library
     @State private var activeCollectionFilter: String? = nil
     @State private var activeColorFilter: BaseColor? = nil
-    @State private var showSettingsPopover = false
+    @State private var showSettings = false
     @State private var sortOrder: SortOrder = .mostRecent
     @FocusState private var isSearchFocused: Bool
     @State private var isSearchExpanded = false
@@ -90,6 +99,9 @@ struct GalleryGridView: View {
     @State private var showCodeSnippetSheet = false
     @State private var showMCPServerSheet = false
     @State private var showSkillSheet = false
+
+    // A collection export awaiting its goal sheet (set from the export menus).
+    @State private var pendingExport: PendingExport?
 
     private var isTrashView: Bool {
         selectedCategory == .trash
@@ -286,9 +298,9 @@ struct GalleryGridView: View {
                     .zIndex(13)
             }
 
-            // Custom Settings menu (same styled panel).
-            if showSettingsPopover {
-                settingsMenuOverlay
+            // Settings — centered modal window.
+            if showSettings {
+                settingsOverlay
                     .zIndex(13)
             }
 
@@ -354,6 +366,16 @@ struct GalleryGridView: View {
         }
         .sheet(isPresented: $showNewCollectionSheet) {
             NewCollectionSheet(existingNames: collectionNames) { _ in }
+        }
+        .sheet(item: $pendingExport) { pending in
+            ExportGoalSheet(target: pending.target, collectionName: pending.name, assets: pending.assets) { goal in
+                ContextPackExporter.export(
+                    projectName: pending.name,
+                    assets: pending.assets,
+                    target: pending.target,
+                    goal: goal
+                )
+            }
         }
         .onAppear {
             // Make sure a library exists and is active before any seeding below,
@@ -726,21 +748,21 @@ struct GalleryGridView: View {
                 }
             }
             toolbarIconButton(icon: "gearshape", tooltip: "Settings") {
-                withAnimation(ManatherTheme.overlayMotion) { showSettingsPopover.toggle() }
+                withAnimation(ManatherTheme.overlayMotion) { showSettings.toggle() }
             }
         }
     }
 
-    /// Dimmed backdrop + the styled settings panel, anchored under the gear icon.
-    private var settingsMenuOverlay: some View {
-        ZStack(alignment: .topTrailing) {
-            Color.black.opacity(0.18)
+    /// Dimmed backdrop + the centered settings window. Clicking the backdrop or
+    /// pressing Esc closes it; clicks on the card itself are absorbed by it.
+    private var settingsOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.35)
                 .ignoresSafeArea()
                 .contentShape(Rectangle())
                 .onTapGesture { closeSettings() }
 
-            SettingsPanelView(
-                isDarkMode: isDarkMode,
+            SettingsView(
                 libraryName: currentLibraryName,
                 assetCount: assets.filter { !$0.isDeleted && !$0.isTrash }.count,
                 onExportLibrary: { exportCurrentLibrary() },
@@ -748,15 +770,12 @@ struct GalleryGridView: View {
                 onClearCache: { ImageCache.shared.clearAll() },
                 onDismiss: { closeSettings() }
             )
-            .padding(.trailing, 16)
-            .padding(.top, ManatherTheme.titleBarInset + 44)
-            .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .topTrailing)))
+            .transition(.opacity.combined(with: .scale(scale: 0.96)))
         }
-        .onExitCommand { closeSettings() }
     }
 
     private func closeSettings() {
-        withAnimation(.easeOut(duration: 0.14)) { showSettingsPopover = false }
+        withAnimation(.easeOut(duration: 0.14)) { showSettings = false }
     }
 
     private func toolbarIconButton(icon: String, tooltip: String, action: @escaping () -> Void) -> some View {
@@ -1006,7 +1025,7 @@ struct GalleryGridView: View {
                         Menu {
                             ForEach(ExportTarget.allCases) { target in
                                 Button(target.menuLabel) {
-                                    ContextPackExporter.export(projectName: name, assets: items, target: target)
+                                    pendingExport = PendingExport(name: name, assets: items, target: target)
                                 }
                             }
                         } label: {
@@ -1122,7 +1141,7 @@ struct GalleryGridView: View {
                         Menu {
                             ForEach(ExportTarget.allCases) { target in
                                 Button(target.menuLabel) {
-                                    ContextPackExporter.export(projectName: name, assets: items, target: target)
+                                    pendingExport = PendingExport(name: name, assets: items, target: target)
                                 }
                             }
                         } label: {

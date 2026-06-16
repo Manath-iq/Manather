@@ -26,6 +26,7 @@ private enum InspectorColors {
 struct InspectorView: View {
     @Binding var asset: AssetItem?
 
+    @Environment(\.modelContext) private var modelContext
     @Query(sort: \AssetCollection.dateAdded, order: .reverse) private var savedCollections: [AssetCollection]
 
     private var collectionNames: [String] { savedCollections.map(\.name) }
@@ -36,7 +37,8 @@ struct InspectorView: View {
     @State private var showCopiedToast = false
     @State private var copiedHex = ""
     @State private var isNoteExpanded = false
-    @State private var showVariationHint = false
+    @State private var isGenerating = false
+    @State private var genMessage: String? = nil
 
     var body: some View {
         Group {
@@ -104,11 +106,12 @@ struct InspectorView: View {
                 colorPaletteSection(for: asset)
                     .padding(.bottom, 14)
 
-                // Action button: Visit Site for web links, Generate Variation for everything else
+                // Action button: Visit Site for web links, Generate Variation for
+                // bitmap media. Code/MCP/skill assets get no image action.
                 if asset.assetType == .webLink {
                     visitSiteButton(for: asset)
                         .padding(.bottom, 20)
-                } else {
+                } else if asset.assetType == .image || asset.assetType == .gif {
                     generateVariationButton
                         .padding(.bottom, 20)
                 }
@@ -274,18 +277,21 @@ struct InspectorView: View {
     private var generateVariationButton: some View {
         VStack(spacing: 6) {
             Button {
-                withAnimation(.spring(response: 0.3)) {
-                    showVariationHint = true
-                }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                    withAnimation { showVariationHint = false }
-                }
+                generateVariation()
             } label: {
                 HStack(spacing: 6) {
-                    Text("✦")
-                        .font(.system(size: 12))
-                    Text("Generate variation")
-                        .font(.system(size: 12, weight: .semibold))
+                    if isGenerating {
+                        ProgressView()
+                            .controlSize(.small)
+                            .tint(.white)
+                        Text("Generating…")
+                            .font(.system(size: 12, weight: .semibold))
+                    } else {
+                        Text("✦")
+                            .font(.system(size: 12))
+                        Text("Generate variation")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
                 }
                 .foregroundStyle(InspectorColors.primaryText.opacity(0.92))
                 .frame(maxWidth: .infinity)
@@ -297,13 +303,61 @@ struct InspectorView: View {
                 )
             }
             .buttonStyle(.microAnimated)
-            .help("Generates a new image from the prompt and palette")
+            .disabled(isGenerating)
+            .help("Generates a new image variation with your default AI provider")
 
-            if showVariationHint {
-                Text("AI provider not connected yet")
+            if let genMessage {
+                Text(genMessage)
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(InspectorColors.tertiaryText)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
                     .transition(.opacity)
+            }
+        }
+    }
+
+    /// Generates one AI variation of the current image and adds it to the library
+    /// (same collection, prompt copied, tagged "variation").
+    private func generateVariation() {
+        guard let asset, !isGenerating else { return }
+        isGenerating = true
+        withAnimation { genMessage = nil }
+
+        Task {
+            do {
+                let data = try await AIClient.generateVariation(of: asset)
+                guard let image = NSImage(data: data) else { throw AIError.badResponse }
+                let baseTitle = asset.title.isEmpty ? "Variation" : "\(asset.title) variation"
+                guard let relPath = FileManagerHelper.saveImageData(image.pngData() ?? data, baseName: baseTitle, ext: "png") else {
+                    throw AIError.badResponse
+                }
+                var tags = asset.tags
+                if !tags.contains("variation") { tags.append("variation") }
+                let size = image.pixelSize
+                let newAsset = AssetItem(
+                    title: baseTitle,
+                    relativeFilePath: relPath,
+                    prompt: asset.prompt,
+                    imageWidth: size.width,
+                    imageHeight: size.height,
+                    typeRaw: "image",
+                    collectionName: asset.collectionName,
+                    tags: tags
+                )
+                withAnimation(.spring(response: 0.4)) { modelContext.insert(newAsset) }
+                ColorIndexer.shared.ensureColors(for: newAsset)
+
+                isGenerating = false
+                withAnimation { genMessage = "✓ Variation added to your library" }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                    withAnimation { if genMessage?.hasPrefix("✓") == true { genMessage = nil } }
+                }
+            } catch {
+                isGenerating = false
+                withAnimation {
+                    genMessage = (error as? AIError)?.errorDescription ?? error.localizedDescription
+                }
             }
         }
     }

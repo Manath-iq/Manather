@@ -2,15 +2,26 @@
 //  ContextPackExporter.swift
 //  manather
 //
-//  One-click export of a collection as an "AI context pack". The user picks a
-//  target agent and Manather lays the files out the way that agent expects:
+//  One-click export of a collection as an AI "build pack" — a self-contained
+//  folder an agent can open and start building from. The layout is two-tier:
 //
-//  • Claude Code    — CLAUDE.md, .claude/skills/<name>/SKILL.md, .mcp.json
-//  • AGENTS.md      — a single AGENTS.md (the cross-tool open standard read by
-//                     Codex, Cursor, Copilot, Gemini, Windsurf, …) + mcp.json
-//  • Generic        — CONTEXT.md + manifest.json (the original neutral format)
+//  • Entry file  — CLAUDE.md / AGENTS.md / README.md depending on the target.
+//                  A short "control panel": what the pack is, a map of the
+//                  folders, and a ▶ Start workflow the agent follows when the
+//                  user says "start".
+//  • context.md  — the catalog. Every file described with its title, notes,
+//                  generation prompt, palette, tags and source.
 //
-//  All profiles also copy media into assets/ and code snippets into snippets/.
+//  Per target only the files that target needs are written (no clutter):
+//
+//  • Claude Code — CLAUDE.md, .claude/skills/<name>/SKILL.md, .mcp.json
+//                  (skills + MCP are wired up so a Claude Code session in the
+//                  folder works immediately).
+//  • AGENTS.md   — AGENTS.md, skills/<name>.md, mcp/mcp.json
+//  • Generic     — README.md, skills/<name>.md, mcp/mcp.json
+//
+//  All targets also copy media into images/, code snippets into snippets/, and
+//  write a machine-readable manifest.json.
 //
 
 import Foundation
@@ -29,7 +40,7 @@ enum ExportTarget: String, CaseIterable, Identifiable {
         switch self {
         case .claudeCode: return "Claude Code"
         case .agentsMD:   return "AGENTS.md (universal)"
-        case .generic:    return "Generic context pack"
+        case .generic:    return "Generic build pack"
         }
     }
 
@@ -38,16 +49,51 @@ enum ExportTarget: String, CaseIterable, Identifiable {
         switch self {
         case .claudeCode: return "-claude"
         case .agentsMD:   return "-agents"
-        case .generic:    return "-context-pack"
+        case .generic:    return "-pack"
         }
     }
 }
 
 enum ContextPackExporter {
 
+    // MARK: - Layout per target
+
+    /// Where each kind of file lands for a given target. Keeping this in one
+    /// place is what lets a single `writePack` serve all three targets.
+    private struct Layout {
+        let entryName: String
+        /// true → skills go to `.claude/skills/<slug>/SKILL.md` (auto-loaded);
+        /// false → `skills/<slug>.md`.
+        let skillsClaudeStyle: Bool
+        /// true → MCP config at root `.mcp.json`; false → `mcp/mcp.json`.
+        let mcpAtRoot: Bool
+
+        /// Claude Code packs are "wired up" — skills auto-load and MCP is at the
+        /// path Claude reads by default.
+        var autoWired: Bool { skillsClaudeStyle && mcpAtRoot }
+
+        var skillsDirLabel: String { skillsClaudeStyle ? ".claude/skills/" : "skills/" }
+        var mcpPathLabel: String { mcpAtRoot ? ".mcp.json" : "mcp/mcp.json" }
+
+        static func of(_ target: ExportTarget) -> Layout {
+            switch target {
+            case .claudeCode: return Layout(entryName: "CLAUDE.md", skillsClaudeStyle: true,  mcpAtRoot: true)
+            case .agentsMD:   return Layout(entryName: "AGENTS.md", skillsClaudeStyle: false, mcpAtRoot: false)
+            case .generic:    return Layout(entryName: "README.md", skillsClaudeStyle: false, mcpAtRoot: false)
+            }
+        }
+    }
+
+    private static let mediaDir = "images"
+    private static let snippetsDir = "snippets"
+
+    // MARK: - Entry point
+
     /// Shows a save panel, then writes the pack for the chosen target.
+    /// `goal` is the free-text project brief the user typed at export time
+    /// (what they want built); empty means "let the agent infer from materials".
     /// Call from the main actor.
-    static func export(projectName: String, assets: [AssetItem], target: ExportTarget = .generic) {
+    static func export(projectName: String, assets: [AssetItem], target: ExportTarget = .generic, goal: String = "") {
         let panel = NSSavePanel()
         panel.title = "Export — \(target.menuLabel)"
         panel.nameFieldStringValue = sanitized(projectName) + target.folderSuffix
@@ -57,7 +103,7 @@ enum ContextPackExporter {
         panel.begin { response in
             guard response == .OK, let url = panel.url else { return }
             do {
-                try writePack(to: url, projectName: projectName, assets: assets, target: target)
+                try writePack(to: url, projectName: projectName, assets: assets, target: target, goal: goal)
                 NSWorkspace.shared.activateFileViewerSelecting([url])
             } catch {
                 let alert = NSAlert()
@@ -69,201 +115,79 @@ enum ContextPackExporter {
         }
     }
 
-    private static func writePack(to root: URL, projectName: String, assets: [AssetItem], target: ExportTarget) throws {
-        switch target {
-        case .generic:    try writeGenericPack(to: root, projectName: projectName, assets: assets)
-        case .claudeCode: try writeClaudePack(to: root, projectName: projectName, assets: assets)
-        case .agentsMD:   try writeAgentsPack(to: root, projectName: projectName, assets: assets)
-        }
-    }
+    // MARK: - Pack writer (shared by all targets)
 
-    // MARK: - Generic pack (original neutral format)
-
-    private static func writeGenericPack(to root: URL, projectName: String, assets: [AssetItem]) throws {
+    private static func writePack(to root: URL, projectName: String, assets: [AssetItem], target: ExportTarget, goal: String) throws {
         let fm = FileManager.default
+        let layout = Layout.of(target)
+        let trimmedGoal = goal.trimmingCharacters(in: .whitespacesAndNewlines)
         try fm.createDirectory(at: root, withIntermediateDirectories: true)
 
-        let assetsDir = root.appendingPathComponent("assets", isDirectory: true)
-        let skillsDir = root.appendingPathComponent("skills", isDirectory: true)
-        let snippetsDir = root.appendingPathComponent("snippets", isDirectory: true)
+        let live = assets.filter { !$0.isTrash && !$0.isDeleted }
 
-        var manifestEntries: [[String: Any]] = []
-        var copiedFiles: [UUID: String] = [:] // asset id -> relative path inside pack
+        // 1. Copy media → images/ and snippets → snippets/.
+        let files = try copyMediaAndSnippets(live, root: root, fm: fm)
 
-        for asset in assets where !asset.isTrash && !asset.isDeleted {
-            var entry: [String: Any] = [
-                "id": asset.id.uuidString,
-                "title": asset.title,
-                "type": asset.typeRaw
-            ]
-            if !asset.prompt.isEmpty { entry["prompt"] = asset.prompt }
-            if !asset.notes.isEmpty { entry["notes"] = asset.notes }
-            if !asset.sourceURL.isEmpty { entry["sourceURL"] = asset.sourceURL }
-            if !asset.tags.isEmpty { entry["tags"] = asset.tags }
+        // 2. Skills → per-layout location.
+        let skills = live.filter { $0.assetType == .skill }
+        let skillRefs = try writeSkills(skills, root: root, layout: layout, fm: fm)
 
-            switch asset.assetType {
-            case .image, .gif, .video:
-                if !asset.relativeFilePath.isEmpty {
-                    try fm.createDirectory(at: assetsDir, withIntermediateDirectories: true)
-                    let src = FileManagerHelper.absolutePath(for: asset.relativeFilePath)
-                    let destName = uniqueName(for: asset, ext: src.pathExtension)
-                    let dest = assetsDir.appendingPathComponent(destName)
-                    if fm.fileExists(atPath: src.path) {
-                        try? fm.copyItem(at: src, to: dest)
-                        copiedFiles[asset.id] = "assets/\(destName)"
-                        entry["file"] = "assets/\(destName)"
-                    }
-                }
-
-            case .skill:
-                try fm.createDirectory(at: skillsDir, withIntermediateDirectories: true)
-                let destName = sanitized(asset.title) + ".md"
-                let dest = skillsDir.appendingPathComponent(destName)
-                let content = asset.codeContent ?? ""
-                try content.write(to: dest, atomically: true, encoding: .utf8)
-                copiedFiles[asset.id] = "skills/\(destName)"
-                entry["file"] = "skills/\(destName)"
-
-            case .codeSnippet:
-                try fm.createDirectory(at: snippetsDir, withIntermediateDirectories: true)
-                let ext = fileExtension(forLanguage: asset.codeLanguage)
-                let destName = sanitized(asset.title) + "." + ext
-                let dest = snippetsDir.appendingPathComponent(destName)
-                try (asset.codeContent ?? "").write(to: dest, atomically: true, encoding: .utf8)
-                copiedFiles[asset.id] = "snippets/\(destName)"
-                entry["file"] = "snippets/\(destName)"
-                if let lang = asset.codeLanguage { entry["language"] = lang }
-
-            case .mcpServer:
-                if let cmd = asset.codeLanguage, !cmd.isEmpty { entry["command"] = cmd }
-                if let cfg = asset.codeContent, !cfg.isEmpty { entry["config"] = cfg }
-
-            case .webLink:
-                break // URL already captured in sourceURL
+        // 3. MCP servers → per-layout config file.
+        let mcpServers = live.filter { $0.assetType == .mcpServer }
+        var mcpPath: String? = nil
+        var mcpKeys: [UUID: [String]] = [:]
+        if !mcpServers.isEmpty {
+            let built = try buildMCPConfig(mcpServers)
+            mcpKeys = built.keys
+            let dest: URL
+            if layout.mcpAtRoot {
+                dest = root.appendingPathComponent(".mcp.json")
+            } else {
+                let mcpDir = root.appendingPathComponent("mcp", isDirectory: true)
+                try fm.createDirectory(at: mcpDir, withIntermediateDirectories: true)
+                dest = mcpDir.appendingPathComponent("mcp.json")
             }
-
-            manifestEntries.append(entry)
+            try built.json.write(to: dest, atomically: true, encoding: .utf8)
+            mcpPath = layout.mcpPathLabel
         }
 
-        // CONTEXT.md — the file an AI agent reads first
-        let contextMD = buildContextMarkdown(projectName: projectName, assets: assets, files: copiedFiles)
-        try contextMD.write(to: root.appendingPathComponent("CONTEXT.md"), atomically: true, encoding: .utf8)
+        // 4. context.md — the catalog.
+        let catalog = buildCatalog(
+            projectName: projectName,
+            entryName: layout.entryName,
+            goal: trimmedGoal,
+            assets: live,
+            files: files,
+            skillRefs: skillRefs,
+            mcpPath: mcpPath,
+            mcpKeys: mcpKeys
+        )
+        try catalog.write(to: root.appendingPathComponent("context.md"), atomically: true, encoding: .utf8)
 
-        // manifest.json — machine-readable index
-        let manifest: [String: Any] = [
-            "project": projectName,
-            "exportedAt": ISO8601DateFormatter().string(from: Date()),
-            "generator": "Manather",
-            "assets": manifestEntries
-        ]
+        // 5. Entry file — the control panel + ▶ Start workflow.
+        let entry = buildEntryDoc(projectName: projectName, layout: layout, goal: trimmedGoal, assets: live, mcpPath: mcpPath)
+        try entry.write(to: root.appendingPathComponent(layout.entryName), atomically: true, encoding: .utf8)
+
+        // 6. manifest.json — machine-readable index.
+        let manifest = buildManifest(
+            projectName: projectName,
+            goal: trimmedGoal,
+            assets: live,
+            files: files,
+            skillRefs: skillRefs,
+            mcpKeys: mcpKeys
+        )
         let jsonData = try JSONSerialization.data(withJSONObject: manifest, options: [.prettyPrinted, .sortedKeys])
         try jsonData.write(to: root.appendingPathComponent("manifest.json"))
     }
 
-    // MARK: - Claude Code pack
+    // MARK: - File copying
 
-    private static func writeClaudePack(to root: URL, projectName: String, assets: [AssetItem]) throws {
-        let fm = FileManager.default
-        try fm.createDirectory(at: root, withIntermediateDirectories: true)
-
-        let live = assets.filter { !$0.isTrash && !$0.isDeleted }
-        let files = try copyMediaAndSnippets(live, root: root, fm: fm)
-
-        // Skills → .claude/skills/<name>/SKILL.md (Claude loads these automatically).
-        let skills = live.filter { $0.assetType == .skill }
-        var skillRefs: [(title: String, path: String)] = []
-        if !skills.isEmpty {
-            let skillsRoot = root.appendingPathComponent(".claude/skills", isDirectory: true)
-            var usedDirs = Set<String>()
-            for skill in skills {
-                let dirName = uniqueSlug(skill.title, used: &usedDirs)
-                let dir = skillsRoot.appendingPathComponent(dirName, isDirectory: true)
-                try fm.createDirectory(at: dir, withIntermediateDirectories: true)
-                let body = skillDocument(name: dirName, asset: skill)
-                let rel = ".claude/skills/\(dirName)/SKILL.md"
-                try body.write(to: dir.appendingPathComponent("SKILL.md"), atomically: true, encoding: .utf8)
-                skillRefs.append((skill.title, rel))
-            }
-        }
-
-        // MCP servers → .mcp.json
-        let mcpServers = live.filter { $0.assetType == .mcpServer }
-        var wroteMCP = false
-        if !mcpServers.isEmpty {
-            let json = try buildMCPConfig(mcpServers)
-            try json.write(to: root.appendingPathComponent(".mcp.json"), atomically: true, encoding: .utf8)
-            wroteMCP = true
-        }
-
-        // CLAUDE.md — project memory pointing at everything above.
-        let md = buildAgentInstructions(
-            projectName: projectName,
-            headerName: "CLAUDE.md",
-            assets: live,
-            files: files,
-            skillRefs: skillRefs,
-            inlineSkills: false,
-            mcpConfigPath: wroteMCP ? ".mcp.json" : nil,
-            mcpServers: mcpServers
-        )
-        try md.write(to: root.appendingPathComponent("CLAUDE.md"), atomically: true, encoding: .utf8)
-    }
-
-    // MARK: - AGENTS.md pack (cross-tool standard)
-
-    private static func writeAgentsPack(to root: URL, projectName: String, assets: [AssetItem]) throws {
-        let fm = FileManager.default
-        try fm.createDirectory(at: root, withIntermediateDirectories: true)
-
-        let live = assets.filter { !$0.isTrash && !$0.isDeleted }
-        let files = try copyMediaAndSnippets(live, root: root, fm: fm)
-
-        // There is no universal "skills" mechanism, so skills are inlined into
-        // AGENTS.md and also dropped into skills/ as standalone files.
-        let skills = live.filter { $0.assetType == .skill }
-        var skillRefs: [(title: String, path: String)] = []
-        if !skills.isEmpty {
-            let skillsDir = root.appendingPathComponent("skills", isDirectory: true)
-            try fm.createDirectory(at: skillsDir, withIntermediateDirectories: true)
-            var used = Set<String>()
-            for skill in skills {
-                let name = uniqueSlug(skill.title, used: &used)
-                let rel = "skills/\(name).md"
-                try (skill.codeContent ?? "").write(to: skillsDir.appendingPathComponent("\(name).md"), atomically: true, encoding: .utf8)
-                skillRefs.append((skill.title, rel))
-            }
-        }
-
-        // MCP servers → mcp.json (no standard path under AGENTS.md, so keep it
-        // at the root and reference it from the doc).
-        let mcpServers = live.filter { $0.assetType == .mcpServer }
-        var wroteMCP = false
-        if !mcpServers.isEmpty {
-            let json = try buildMCPConfig(mcpServers)
-            try json.write(to: root.appendingPathComponent("mcp.json"), atomically: true, encoding: .utf8)
-            wroteMCP = true
-        }
-
-        let md = buildAgentInstructions(
-            projectName: projectName,
-            headerName: "AGENTS.md",
-            assets: live,
-            files: files,
-            skillRefs: skillRefs,
-            inlineSkills: true,
-            mcpConfigPath: wroteMCP ? "mcp.json" : nil,
-            mcpServers: mcpServers
-        )
-        try md.write(to: root.appendingPathComponent("AGENTS.md"), atomically: true, encoding: .utf8)
-    }
-
-    // MARK: - Shared file copying
-
-    /// Copies media into assets/ and code snippets into snippets/.
+    /// Copies media into images/ and code snippets into snippets/.
     /// Returns each copied asset's relative path keyed by its id.
     private static func copyMediaAndSnippets(_ assets: [AssetItem], root: URL, fm: FileManager) throws -> [UUID: String] {
-        let assetsDir = root.appendingPathComponent("assets", isDirectory: true)
-        let snippetsDir = root.appendingPathComponent("snippets", isDirectory: true)
+        let imagesDir = root.appendingPathComponent(mediaDir, isDirectory: true)
+        let snippets = root.appendingPathComponent(snippetsDir, isDirectory: true)
         var files: [UUID: String] = [:]
 
         for asset in assets {
@@ -272,17 +196,17 @@ enum ContextPackExporter {
                 guard !asset.relativeFilePath.isEmpty else { continue }
                 let src = FileManagerHelper.absolutePath(for: asset.relativeFilePath)
                 guard fm.fileExists(atPath: src.path) else { continue }
-                try fm.createDirectory(at: assetsDir, withIntermediateDirectories: true)
+                try fm.createDirectory(at: imagesDir, withIntermediateDirectories: true)
                 let destName = uniqueName(for: asset, ext: src.pathExtension)
-                try? fm.copyItem(at: src, to: assetsDir.appendingPathComponent(destName))
-                files[asset.id] = "assets/\(destName)"
+                try? fm.copyItem(at: src, to: imagesDir.appendingPathComponent(destName))
+                files[asset.id] = "\(mediaDir)/\(destName)"
 
             case .codeSnippet:
-                try fm.createDirectory(at: snippetsDir, withIntermediateDirectories: true)
+                try fm.createDirectory(at: snippets, withIntermediateDirectories: true)
                 let ext = fileExtension(forLanguage: asset.codeLanguage)
                 let destName = sanitized(asset.title) + "." + ext
-                try (asset.codeContent ?? "").write(to: snippetsDir.appendingPathComponent(destName), atomically: true, encoding: .utf8)
-                files[asset.id] = "snippets/\(destName)"
+                try (asset.codeContent ?? "").write(to: snippets.appendingPathComponent(destName), atomically: true, encoding: .utf8)
+                files[asset.id] = "\(snippetsDir)/\(destName)"
 
             default:
                 break
@@ -291,15 +215,48 @@ enum ContextPackExporter {
         return files
     }
 
+    /// Writes skill assets to the location dictated by `layout`. Returns each
+    /// skill's relative path keyed by its id.
+    private static func writeSkills(_ skills: [AssetItem], root: URL, layout: Layout, fm: FileManager) throws -> [UUID: String] {
+        guard !skills.isEmpty else { return [:] }
+        var refs: [UUID: String] = [:]
+        var used = Set<String>()
+
+        if layout.skillsClaudeStyle {
+            let skillsRoot = root.appendingPathComponent(".claude/skills", isDirectory: true)
+            for skill in skills {
+                let slugName = uniqueSlug(skill.title, used: &used)
+                let dir = skillsRoot.appendingPathComponent(slugName, isDirectory: true)
+                try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+                try skillDocument(name: slugName, asset: skill)
+                    .write(to: dir.appendingPathComponent("SKILL.md"), atomically: true, encoding: .utf8)
+                refs[skill.id] = ".claude/skills/\(slugName)/SKILL.md"
+            }
+        } else {
+            let skillsDir = root.appendingPathComponent("skills", isDirectory: true)
+            try fm.createDirectory(at: skillsDir, withIntermediateDirectories: true)
+            for skill in skills {
+                let slugName = uniqueSlug(skill.title, used: &used)
+                try (skill.codeContent ?? "")
+                    .write(to: skillsDir.appendingPathComponent("\(slugName).md"), atomically: true, encoding: .utf8)
+                refs[skill.id] = "skills/\(slugName).md"
+            }
+        }
+        return refs
+    }
+
     // MARK: - MCP config
 
-    /// Builds a `{ "mcpServers": { … } }` JSON string from MCP-server assets.
-    /// Each asset stores a launch command in `codeLanguage` and a JSON config
-    /// in `codeContent`; we parse the config when possible and fall back to a
+    /// Builds a `{ "mcpServers": { … } }` JSON string from MCP-server assets and
+    /// reports which config keys each asset contributed (for the catalog).
+    ///
+    /// Each asset stores a launch command in `codeLanguage` and a JSON config in
+    /// `codeContent`; we parse the config when possible and fall back to a
     /// command-only entry otherwise.
-    private static func buildMCPConfig(_ servers: [AssetItem]) throws -> String {
+    private static func buildMCPConfig(_ servers: [AssetItem]) throws -> (json: String, keys: [UUID: [String]]) {
         var entries: [String: Any] = [:]
         var used = Set<String>()
+        var keysByAsset: [UUID: [String]] = [:]
 
         for server in servers {
             let parsed = server.codeContent.flatMap { content -> [String: Any]? in
@@ -311,12 +268,15 @@ enum ContextPackExporter {
             // merge those entries directly instead of nesting them.
             if let parsed, let nested = parsed["mcpServers"] as? [String: Any] {
                 for (key, value) in nested {
-                    entries[uniqueKey(key, used: &used)] = value
+                    let k = uniqueKey(key, used: &used)
+                    entries[k] = value
+                    keysByAsset[server.id, default: []].append(k)
                 }
                 continue
             }
 
             let key = uniqueKey(slug(server.title), used: &used)
+            keysByAsset[server.id, default: []].append(key)
             if var entry = parsed {
                 if entry["command"] == nil, let cmd = server.codeLanguage, !cmd.isEmpty {
                     entry["command"] = cmd
@@ -330,9 +290,9 @@ enum ContextPackExporter {
             }
         }
 
-        let root: [String: Any] = ["mcpServers": entries]
-        let data = try JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys])
-        return String(data: data, encoding: .utf8) ?? "{}"
+        let rootObj: [String: Any] = ["mcpServers": entries]
+        let data = try JSONSerialization.data(withJSONObject: rootObj, options: [.prettyPrinted, .sortedKeys])
+        return (String(data: data, encoding: .utf8) ?? "{}", keysByAsset)
     }
 
     // MARK: - Skill documents
@@ -355,7 +315,7 @@ enum ContextPackExporter {
         """
     }
 
-    /// One-line description for skill frontmatter: notes → prompt → title.
+    /// One-line description for a skill: notes → prompt → title.
     private static func skillDescription(for asset: AssetItem) -> String {
         let candidate = !asset.notes.isEmpty ? asset.notes
             : (!asset.prompt.isEmpty ? asset.prompt : asset.title)
@@ -364,188 +324,266 @@ enum ContextPackExporter {
             .trimmingCharacters(in: .whitespaces)
     }
 
-    // MARK: - Agent instructions (CLAUDE.md / AGENTS.md body)
+    // MARK: - Entry document (CLAUDE.md / AGENTS.md / README.md)
 
-    private static func buildAgentInstructions(
-        projectName: String,
-        headerName: String,
-        assets: [AssetItem],
-        files: [UUID: String],
-        skillRefs: [(title: String, path: String)],
-        inlineSkills: Bool,
-        mcpConfigPath: String?,
-        mcpServers: [AssetItem]
-    ) -> String {
+    /// The short "control panel": what the pack is, a map of the folders that
+    /// actually exist, and the universal ▶ Start workflow.
+    private static func buildEntryDoc(projectName: String, layout: Layout, goal: String, assets: [AssetItem], mcpPath: String?) -> String {
+        let hasImages = assets.contains { $0.assetType == .image || $0.assetType == .gif || $0.assetType == .video }
+        let hasSkills = assets.contains { $0.assetType == .skill }
+        let hasSnippets = assets.contains { $0.assetType == .codeSnippet }
+        let hasMCP = mcpPath != nil
+
         var md = """
         # \(projectName)
 
-        > Project context exported from Manather (`\(headerName)`). It collects the
-        > reference materials, skills, MCP servers, and code snippets for building
-        > this project. Read everything below before starting work.
+        > **Build pack** exported from Manather. This folder is a self-contained brief
+        > for building **\(projectName)**. Everything you need — references, skills, MCP
+        > servers, code snippets and links — is here and catalogued in `context.md`.
 
         """
 
-        let skills = assets.filter { $0.assetType == .skill }
+        if !goal.isEmpty {
+            md += """
+
+            ## 🎯 Goal
+
+            \(goal)
+
+            """
+        }
+
+        md += """
+
+        ## How to use this pack
+
+        1. **Read `context.md` first.** It is the full catalog: every file in this
+           folder with its description, generation prompt, palette and notes.
+        2. Then open the materials it points to and start building.
+
+        ## What's inside
+
+        - `context.md` — the catalog (read this first).
+
+        """
+        if hasImages { md += "- `\(mediaDir)/` — visual references: the look & feel to match.\n" }
+        if hasSkills {
+            let suffix = layout.autoWired ? " (loaded automatically)" : ""
+            md += "- `\(layout.skillsDirLabel)` — skills to follow\(suffix).\n"
+        }
+        if hasMCP {
+            let suffix = layout.autoWired ? " (already wired up)" : ""
+            md += "- `\(layout.mcpPathLabel)` — MCP servers\(suffix).\n"
+        }
+        if hasSnippets { md += "- `\(snippetsDir)/` — reusable code patterns.\n" }
+        md += "- `manifest.json` — machine-readable index of everything above.\n"
+
+        // ▶ Start workflow (universal).
+        let skillsClause: String = {
+            guard hasSkills else { return "" }
+            return layout.autoWired
+                ? " Follow every skill in `\(layout.skillsDirLabel)` (they load automatically)."
+                : " Follow every skill listed in `context.md`."
+        }()
+        let mcpClause: String = {
+            guard let mcpPath else { return "" }
+            return " Connect every MCP server from `\(mcpPath)`."
+        }()
+        let snippetsClause = hasSnippets ? " Reuse the `\(snippetsDir)/` patterns wherever they fit." : ""
+
+        var steps: [String] = [
+            "Read **`context.md`** end to end.",
+            "Restate in 2–3 sentences what you're about to build and the stack you'll use. Ask only genuinely blocking questions; otherwise proceed."
+        ]
+        if hasImages {
+            steps.append("Treat the files in `\(mediaDir)/` as the **visual target** — match their layout, spacing, colours (each image's palette is listed in `context.md`) and overall mood.")
+        }
+        let buildTarget = goal.isEmpty
+            ? "the project described in `context.md`"
+            : "toward the **Goal** stated above, using everything in `context.md`"
+        steps.append("Build \(buildTarget).\(skillsClause)\(mcpClause)\(snippetsClause)")
+        steps.append("Scaffold the project, then keep building until it actually runs.")
+        steps.append("Finish with a short summary of what you built and how to run it.")
+
+        let numbered = steps.enumerated()
+            .map { "\($0.offset + 1). \($0.element)" }
+            .joined(separator: "\n")
+
+        md += """
+
+        ## ▶ Start
+
+        When the user says **start** (or "go" / "build it"), work through this without
+        stopping for confirmation between steps:
+
+        \(numbered)
+
+        ---
+
+        *Generated by Manather.*
+        """
+        return md
+    }
+
+    // MARK: - context.md (the catalog)
+
+    private static func buildCatalog(
+        projectName: String,
+        entryName: String,
+        goal: String,
+        assets: [AssetItem],
+        files: [UUID: String],
+        skillRefs: [UUID: String],
+        mcpPath: String?,
+        mcpKeys: [UUID: [String]]
+    ) -> String {
+        var md = """
+        # \(projectName) — Catalog
+
+        > Index of everything in this pack, exported from Manather on \
+        \(ISO8601DateFormatter().string(from: Date())). Paths are relative to this
+        > folder. See `\(entryName)` for how to use it.
+
+        """
+
+        if !goal.isEmpty {
+            md += """
+
+            ## 🎯 Goal
+
+            \(goal)
+
+            """
+        }
+
+        let media    = assets.filter { $0.assetType == .image || $0.assetType == .gif || $0.assetType == .video }
+        let skills   = assets.filter { $0.assetType == .skill }
+        let mcp      = assets.filter { $0.assetType == .mcpServer }
         let snippets = assets.filter { $0.assetType == .codeSnippet }
-        let links = assets.filter { $0.assetType == .webLink }
-        let media = assets.filter { $0.assetType == .image || $0.assetType == .gif || $0.assetType == .video }
+        let links    = assets.filter { $0.assetType == .webLink }
+
+        // Visual references
+        if !media.isEmpty {
+            md += "\n## Visual references\n"
+            for item in media {
+                md += "\n### \(item.title)\n"
+                if let file = files[item.id] {
+                    var line = "- File: `\(file)`"
+                    if let dims = dimensions(item) { line += "  ·  \(dims)" }
+                    md += line + "\n"
+                }
+                if !item.notes.isEmpty { md += "- Description: \(oneLine(item.notes))\n" }
+                if !item.prompt.isEmpty { md += "- Generation prompt: \(oneLine(item.prompt))\n" }
+                if let colors = item.dominantColorsHex, !colors.isEmpty {
+                    md += "- Palette: " + colors.map { "`\($0)`" }.joined(separator: " ") + "\n"
+                }
+                if !item.tags.isEmpty { md += "- Tags: \(item.tags.joined(separator: ", "))\n" }
+                if !item.sourceURL.isEmpty { md += "- Source: \(item.sourceURL)\n" }
+            }
+        }
 
         // Skills
         if !skills.isEmpty {
-            if inlineSkills {
-                md += "\n## Skills (follow these instructions)\n"
-                for skill in skills {
-                    md += "\n### \(skill.title)\n"
-                    if let ref = skillRefs.first(where: { $0.title == skill.title }) {
-                        md += "\nFull file: `\(ref.path)`\n"
-                    }
-                    if let content = skill.codeContent, !content.isEmpty {
-                        md += "\n\(content)\n"
-                    }
-                }
-            } else {
-                md += "\n## Skills\n\nThese are installed under `.claude/skills/` and load automatically:\n\n"
-                for ref in skillRefs {
-                    md += "- **\(ref.title)** — `\(ref.path)`\n"
-                }
+            md += "\n## Skills (follow these)\n"
+            for skill in skills {
+                md += "\n### \(skill.title)\n"
+                if let file = skillRefs[skill.id] { md += "- File: `\(file)`\n" }
+                md += "- Purpose: \(skillDescription(for: skill))\n"
             }
         }
 
         // MCP servers
-        if !mcpServers.isEmpty {
-            md += "\n## MCP Servers (connect these before working)\n"
-            if let path = mcpConfigPath {
-                md += "\nConfig: `\(path)`\n"
-            }
-            for server in mcpServers {
+        if !mcp.isEmpty {
+            md += "\n## MCP servers (connect these)\n"
+            for server in mcp {
                 md += "\n### \(server.title)\n"
-                if let cmd = server.codeLanguage, !cmd.isEmpty {
-                    md += "\nLaunch command:\n```\n\(cmd)\n```\n"
+                if let path = mcpPath {
+                    var line = "- Config: `\(path)`"
+                    if let keys = mcpKeys[server.id], !keys.isEmpty {
+                        line += " (key\(keys.count == 1 ? "" : "s"): " + keys.map { "`\($0)`" }.joined(separator: ", ") + ")"
+                    }
+                    md += line + "\n"
                 }
-                if !server.notes.isEmpty { md += "\n\(server.notes)\n" }
+                if let cmd = server.codeLanguage, !cmd.isEmpty { md += "- Command: `\(cmd)`\n" }
+                if !server.notes.isEmpty { md += "- Notes: \(oneLine(server.notes))\n" }
             }
         }
 
         // Code snippets
         if !snippets.isEmpty {
-            md += "\n## Code Snippets (reuse these patterns)\n"
+            md += "\n## Code snippets (reuse these patterns)\n"
             for snippet in snippets {
-                md += "\n### \(snippet.title)"
-                if let lang = snippet.codeLanguage { md += " (\(lang))" }
-                md += "\n"
-                if let file = files[snippet.id] { md += "\nFile: `\(file)`\n" }
-                if !snippet.notes.isEmpty { md += "\n\(snippet.notes)\n" }
-                if !snippet.prompt.isEmpty { md += "\nPrompt: \(snippet.prompt)\n" }
-            }
-        }
-
-        // Visual references
-        if !media.isEmpty {
-            md += "\n## Visual References\n"
-            for item in media {
-                md += "\n### \(item.title)\n"
-                if let file = files[item.id] { md += "\nFile: `\(file)`\n" }
-                if !item.prompt.isEmpty { md += "\nPrompt: \(item.prompt)\n" }
-                if !item.notes.isEmpty { md += "\nNotes: \(item.notes)\n" }
-                if !item.tags.isEmpty { md += "\nTags: \(item.tags.joined(separator: ", "))\n" }
+                var heading = "\n### \(snippet.title)"
+                if let lang = snippet.codeLanguage { heading += " (\(lang))" }
+                md += heading + "\n"
+                if let file = files[snippet.id] { md += "- File: `\(file)`\n" }
+                if !snippet.notes.isEmpty { md += "- Notes: \(oneLine(snippet.notes))\n" }
+                if !snippet.prompt.isEmpty { md += "- Prompt: \(oneLine(snippet.prompt))\n" }
             }
         }
 
         // Reference links
         if !links.isEmpty {
-            md += "\n## Reference Links\n"
+            md += "\n## Reference links\n\n"
             for link in links {
-                md += "\n- [\(link.title)](\(link.sourceURL))"
-                if !link.notes.isEmpty { md += " — \(link.notes)" }
+                md += "- [\(link.title)](\(link.sourceURL))"
+                if !link.notes.isEmpty { md += " — \(oneLine(link.notes))" }
+                md += "\n"
             }
-            md += "\n"
         }
 
         return md
     }
 
-    // MARK: - CONTEXT.md Generation (generic pack)
+    // MARK: - manifest.json
 
-    private static func buildContextMarkdown(projectName: String, assets: [AssetItem], files: [UUID: String]) -> String {
-        var md = """
-        # \(projectName) — Project Context Pack
-
-        > Exported from Manather. This folder contains the reference materials,
-        > skills, MCP servers, and code snippets for building this project.
-        > Read everything below before starting work.
-
-        """
-
-        let live = assets.filter { !$0.isTrash && !$0.isDeleted }
-
-        let skills = live.filter { $0.assetType == .skill }
-        let mcpServers = live.filter { $0.assetType == .mcpServer }
-        let snippets = live.filter { $0.assetType == .codeSnippet }
-        let links = live.filter { $0.assetType == .webLink }
-        let media = live.filter { $0.assetType == .image || $0.assetType == .gif || $0.assetType == .video }
-
-        if !skills.isEmpty {
-            md += "\n## Skills (follow these instructions)\n"
-            for skill in skills {
-                md += "\n### \(skill.title)\n"
-                if let file = files[skill.id] { md += "\nFull instructions: `\(file)`\n" }
-                if let content = skill.codeContent, !content.isEmpty {
-                    md += "\n\(content)\n"
-                }
-            }
+    private static func buildManifest(
+        projectName: String,
+        goal: String,
+        assets: [AssetItem],
+        files: [UUID: String],
+        skillRefs: [UUID: String],
+        mcpKeys: [UUID: [String]]
+    ) -> [String: Any] {
+        var entries: [[String: Any]] = []
+        for asset in assets {
+            var entry: [String: Any] = [
+                "id": asset.id.uuidString,
+                "title": asset.title,
+                "type": asset.typeRaw
+            ]
+            if !asset.prompt.isEmpty { entry["prompt"] = asset.prompt }
+            if !asset.notes.isEmpty { entry["notes"] = asset.notes }
+            if !asset.sourceURL.isEmpty { entry["sourceURL"] = asset.sourceURL }
+            if !asset.tags.isEmpty { entry["tags"] = asset.tags }
+            if let file = files[asset.id] ?? skillRefs[asset.id] { entry["file"] = file }
+            if let colors = asset.dominantColorsHex, !colors.isEmpty { entry["palette"] = colors }
+            if let lang = asset.codeLanguage, asset.assetType == .codeSnippet { entry["language"] = lang }
+            if asset.assetType == .mcpServer, let keys = mcpKeys[asset.id] { entry["mcpKeys"] = keys }
+            entries.append(entry)
         }
-
-        if !mcpServers.isEmpty {
-            md += "\n## MCP Servers (connect these before working)\n"
-            for server in mcpServers {
-                md += "\n### \(server.title)\n"
-                if let cmd = server.codeLanguage, !cmd.isEmpty {
-                    md += "\nLaunch command:\n```\n\(cmd)\n```\n"
-                }
-                if let cfg = server.codeContent, !cfg.isEmpty {
-                    md += "\nConfig:\n```json\n\(cfg)\n```\n"
-                }
-                if !server.notes.isEmpty { md += "\n\(server.notes)\n" }
-            }
-        }
-
-        if !snippets.isEmpty {
-            md += "\n## Code Snippets (reuse these patterns)\n"
-            for snippet in snippets {
-                md += "\n### \(snippet.title)"
-                if let lang = snippet.codeLanguage { md += " (\(lang))" }
-                md += "\n"
-                if let file = files[snippet.id] { md += "\nFile: `\(file)`\n" }
-                if !snippet.notes.isEmpty { md += "\n\(snippet.notes)\n" }
-                if !snippet.prompt.isEmpty { md += "\nPrompt: \(snippet.prompt)\n" }
-            }
-        }
-
-        if !media.isEmpty {
-            md += "\n## Visual References\n"
-            for item in media {
-                md += "\n### \(item.title)\n"
-                if let file = files[item.id] { md += "\nFile: `\(file)`\n" }
-                if !item.prompt.isEmpty { md += "\nPrompt: \(item.prompt)\n" }
-                if !item.notes.isEmpty { md += "\nNotes: \(item.notes)\n" }
-                if !item.tags.isEmpty { md += "\nTags: \(item.tags.joined(separator: ", "))\n" }
-            }
-        }
-
-        if !links.isEmpty {
-            md += "\n## Reference Links\n"
-            for link in links {
-                md += "\n- [\(link.title)](\(link.sourceURL))"
-                if !link.notes.isEmpty { md += " — \(link.notes)" }
-            }
-            md += "\n"
-        }
-
-        md += "\n---\n\n*Machine-readable index: `manifest.json`*\n"
-        return md
+        var manifest: [String: Any] = [
+            "project": projectName,
+            "exportedAt": ISO8601DateFormatter().string(from: Date()),
+            "generator": "Manather",
+            "assets": entries
+        ]
+        if !goal.isEmpty { manifest["goal"] = goal }
+        return manifest
     }
 
     // MARK: - Helpers
+
+    /// "1920×1080" when both dimensions are known, otherwise nil.
+    private static func dimensions(_ asset: AssetItem) -> String? {
+        guard asset.imageWidth > 0, asset.imageHeight > 0 else { return nil }
+        return "\(Int(asset.imageWidth))×\(Int(asset.imageHeight))"
+    }
+
+    /// Collapses newlines so multi-line notes stay on a single catalog bullet.
+    private static func oneLine(_ text: String) -> String {
+        text.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 
     private static func sanitized(_ name: String) -> String {
         let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_"))
@@ -566,10 +604,11 @@ enum ContextPackExporter {
     }
 
     private static func uniqueKey(_ base: String, used: inout Set<String>) -> String {
-        var candidate = base.isEmpty ? "untitled" : base
+        let safe = base.isEmpty ? "untitled" : base
+        var candidate = safe
         var n = 2
         while used.contains(candidate) {
-            candidate = "\(base)-\(n)"
+            candidate = "\(safe)-\(n)"
             n += 1
         }
         used.insert(candidate)
