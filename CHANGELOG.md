@@ -9,6 +9,15 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 _Nothing yet — your next change goes here._
 
+## [0.1.8] — 2026-06-17
+
+### Fixed
+- **CLI Agents detection could get stuck.** Detecting installed terminal agents
+  could hang on a "detecting" spinner if your shell printed startup output —
+  fixed by discarding shell noise and reading output safely.
+- **Duplicating a save dropped its tags.** Duplicate now keeps the tags too,
+  alongside the prompt, notes, palette and collection.
+
 ## [0.1.7] — 2026-06-17
 
 ### Added

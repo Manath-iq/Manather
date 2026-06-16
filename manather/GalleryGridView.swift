@@ -1953,7 +1953,8 @@ struct GalleryGridView: View {
             codeContent: asset.codeContent,
             dominantColorsHex: asset.dominantColorsHex,
             collectionName: asset.collectionName,
-            spaceName: asset.spaceName
+            spaceName: asset.spaceName,
+            tags: asset.tags
         )
         modelContext.insert(copy)
     }

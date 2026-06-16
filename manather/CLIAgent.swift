@@ -123,14 +123,18 @@ final class CLIAgentDetector {
         process.arguments = args
         let pipe = Pipe()
         process.standardOutput = pipe
-        process.standardError = Pipe()
+        // Discard stderr: an interactive login shell (`-lic`) can print startup
+        // noise, and an undrained pipe would fill and deadlock the process.
+        process.standardError = FileHandle.nullDevice
         do {
             try process.run()
-            process.waitUntilExit()
         } catch {
             return nil
         }
+        // Read stdout to EOF *before* waiting, so a large output can't fill the
+        // pipe buffer and stall waitUntilExit().
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
         return String(data: data, encoding: .utf8)
     }
 }
