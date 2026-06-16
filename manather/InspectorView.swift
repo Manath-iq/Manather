@@ -99,9 +99,14 @@ struct InspectorView: View {
                 colorPaletteSection(for: asset)
                     .padding(.bottom, 14)
 
-                // Generate Variation (AI panel)
-                generateVariationButton
-                    .padding(.bottom, 20)
+                // Action button: Visit Site for web links, Generate Variation for everything else
+                if asset.assetType == .webLink {
+                    visitSiteButton(for: asset)
+                        .padding(.bottom, 20)
+                } else {
+                    generateVariationButton
+                        .padding(.bottom, 20)
+                }
 
                 // Name
                 sectionLabel("Name")
@@ -225,6 +230,37 @@ struct InspectorView: View {
                 colorHexes = []
             }
         }
+    }
+
+    // MARK: - Visit Site (web links)
+
+    private func visitSiteButton(for asset: AssetItem) -> some View {
+        Button {
+            if let url = URL(string: asset.sourceURL), !asset.sourceURL.isEmpty {
+                NSWorkspace.shared.open(url)
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "safari")
+                    .font(.system(size: 12))
+                Text("Visit Site")
+                    .font(.system(size: 12, weight: .semibold))
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: 10, weight: .bold))
+            }
+            .foregroundStyle(InspectorColors.primaryText.opacity(0.92))
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 9)
+            .background(
+                Capsule()
+                    .fill(Color.white.opacity(0.12))
+                    .overlay(Capsule().stroke(Color.white.opacity(0.16), lineWidth: 1))
+            )
+        }
+        .buttonStyle(.microAnimated)
+        .disabled(asset.sourceURL.isEmpty)
+        .opacity(asset.sourceURL.isEmpty ? 0.4 : 1.0)
+        .help("Open this website in your default browser")
     }
 
     // MARK: - Generate Variation (AI)
