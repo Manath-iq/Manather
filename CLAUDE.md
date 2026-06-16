@@ -218,3 +218,22 @@ manather/
 ```
 
 CI: `.github/workflows/build.yml` — сборка на каждый push (раннер `macos-26`).
+
+## 6. Релизы (DMG)
+
+`.github/workflows/release.yml` собирает Release-сборку, пакует `.dmg` и публикует
+GitHub Release **при пуше тега `v*`** (имя DMG и заголовок берутся из тега; текст
+релиза — из секции `## [X.Y.Z]` в `CHANGELOG.md`). Процесс выпуска новой версии:
+
+1. **Узнай реальную последнюю версию через УДАЛЁННЫЕ теги, а не локальные:**
+   `git ls-remote --tags origin`. ⚠️ `git tag` показывает только локальные теги —
+   они часто устаревшие (новые теги/релизы могли создать без тебя), и можно
+   ошибочно выбрать уже занятый номер. (Реальный случай: локально максимум был
+   `v0.1.3`, а на удалёнке уже жил выпущенный `v0.1.4` — следующая версия 0.1.5.)
+2. Подними `MARKETING_VERSION` в `manather.xcodeproj/project.pbxproj` (две строки,
+   Debug+Release) до новой версии.
+3. Добавь секцию `## [X.Y.Z] — YYYY-MM-DD` в начало `CHANGELOG.md` (под `[Unreleased]`).
+4. Закоммить, запушь `main`, затем `git tag vX.Y.Z && git push origin vX.Y.Z`.
+5. Проверь сборку: `curl -s https://api.github.com/repos/Manath-iq/Manather/actions/runs?per_page=3`
+   (поле `conclusion`) и релиз: `.../releases/latest` (ассет `.dmg`). `gh` НЕ установлен —
+   используй GitHub API через curl (репозиторий публичный, токен не нужен для чтения).
