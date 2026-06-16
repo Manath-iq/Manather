@@ -133,10 +133,10 @@ dark themes · search (**⌘F**) and quick tab switching · fluid, consistent mo
     <td align="center"><b>Boards</b> — moodboard canvas</td>
   </tr>
   <tr>
-    <td colspan="2"><img src="media/detail.png" alt="Asset detail view" /></td>
+    <td colspan="2"><img src="media/collections.png" alt="Collections" /></td>
   </tr>
   <tr>
-    <td colspan="2" align="center"><b>Detail view</b> — prompt, color palette, and tags</td>
+    <td colspan="2" align="center"><b>Collections</b> — group saves together</td>
   </tr>
 </table>
 

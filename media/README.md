@@ -9,7 +9,7 @@ file name**, and it will show up automatically (no edits to `README.md` needed).
 | `cover.png` | Big image at the top of the README | The best overall shot — usually the Library grid full of colorful cards |
 | `library.png` | Features → Library | The masonry grid with the color filter / search bar visible |
 | `board.png` | Features → Boards | A moodboard with a few images, notes, arrows |
-| `detail.png` | Features → Detail view | An asset opened full-screen with the prompt / palette / tags inspector |
+| `collections.png` | Features → Collections | The Collections tab with a few collection cards (stacked previews) |
 | `demo.gif` _(optional)_ | Top of the README, under the cover | A 5–10s screen recording: drag something in → organize → export a context pack |
 
 > **A short demo GIF converts far better than a static screenshot.** If you add a
