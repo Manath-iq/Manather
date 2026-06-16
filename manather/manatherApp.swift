@@ -19,6 +19,7 @@ struct manatherApp: App {
             AssetCollection.self,
             Board.self,
             BoardItem.self,
+            Library.self,
         ])
         let modelConfiguration = ModelConfiguration(
             schema: schema,

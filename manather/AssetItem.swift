@@ -53,6 +53,11 @@ final class AssetItem {
     var collectionName: String? = nil
     var spaceName: String? = nil
 
+    // Which library this asset belongs to. Optional so older stores migrate
+    // cleanly (nil = adopted by the default library on first launch — see
+    // LibraryManager.adoptOrphans).
+    var libraryID: UUID? = nil
+
     // Soft-delete flag (set before modelContext.delete so animations finish cleanly)
     var isDeleted: Bool = false
 
@@ -95,6 +100,7 @@ final class AssetItem {
         dominantColorsHex: [String]? = nil,
         collectionName: String? = nil,
         spaceName: String? = nil,
+        libraryID: UUID? = nil,
         tags: [String] = []
     ) {
         self.id = UUID()
@@ -113,6 +119,9 @@ final class AssetItem {
         self.dominantColorsHex = dominantColorsHex
         self.collectionName = collectionName
         self.spaceName = spaceName
+        // Fall back to whatever library is active so anything created through the
+        // normal UI lands in the right place; the importer passes an explicit id.
+        self.libraryID = libraryID ?? LibraryManager.activeLibraryID
         self.isDeleted = false
         self.tags = tags
     }

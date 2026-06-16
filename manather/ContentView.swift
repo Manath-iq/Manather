@@ -248,6 +248,9 @@ struct ContentView: View {
     @AppStorage("isDarkMode") private var isDarkMode = false
     // Global UI zoom (⌘+ / ⌘- / ⌘0), like Notes or Messages.
     @AppStorage("uiZoom") private var uiZoom: Double = 1.0
+    // The library the user is currently looking at. Everything below is filtered
+    // to it; switching libraries (from the "Library ▾" menu) re-filters here.
+    @AppStorage("activeLibraryID") private var activeLibraryIDString: String = ""
 
     // Global screenshot hotkey (configurable in Settings). Defaults to ⌘⇧7
     // (keyCode 26 = "7", modifiers cmd|shift = 768). System-wide capture.
@@ -263,13 +266,20 @@ struct ContentView: View {
     @State private var columnCount: Double = 4
     @State private var isImporting: Bool = false
 
+    /// Assets that belong to the active library. Before the first library is
+    /// seeded (activeID == nil) nothing is hidden, so the app never looks empty.
+    private var libraryAssets: [AssetItem] {
+        let activeID = UUID(uuidString: activeLibraryIDString)
+        return allAssets.filter { !$0.isDeleted && (activeID == nil || $0.libraryID == activeID) }
+    }
+
     var body: some View {
         GeometryReader { geo in
             ZStack {
-                LibraryAmbientBackground(featuredAsset: allAssets.first { !$0.isDeleted && !$0.isTrash })
+                LibraryAmbientBackground(featuredAsset: libraryAssets.first { !$0.isTrash })
 
                 GalleryGridView(
-                    assets: allAssets.filter { !$0.isDeleted },
+                    assets: libraryAssets,
                     selectedCategory: $selectedCategory,
                     selectedAsset: $selectedAsset,
                     searchText: $searchText,
@@ -296,7 +306,10 @@ struct ContentView: View {
         .onChange(of: selectedCategory) { _, _ in
             selectedAsset = nil
         }
-        .onAppear { configureScreenshotHotKey() }
+        .onAppear {
+            LibraryManager.ensureActive(context: modelContext)
+            configureScreenshotHotKey()
+        }
         .onChange(of: screenshotHotKeyEnabled) { _, _ in configureScreenshotHotKey() }
         .onChange(of: screenshotHotKeyCode) { _, _ in configureScreenshotHotKey() }
         .onChange(of: screenshotHotKeyModifiers) { _, _ in configureScreenshotHotKey() }

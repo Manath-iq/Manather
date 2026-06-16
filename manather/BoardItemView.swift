@@ -137,8 +137,13 @@ struct BoardItemView: View {
             }
         }
         .frame(width: screenSize.width, height: screenSize.height)
-        .position(screenCenter)
+        // Rotate around the item's OWN center. This must come BEFORE .position:
+        // .position expands to fill the whole canvas, so a .rotationEffect placed
+        // after it would pivot around the canvas center instead — which made a
+        // rotated item drift away from its toolbar/handles and drag in the wrong
+        // direction (drag up → moved sideways).
         .rotationEffect(.degrees(item.rotation))
+        .position(screenCenter)
         .onChange(of: isEditing) { _, editing in
             isTextFocused = editing
         }

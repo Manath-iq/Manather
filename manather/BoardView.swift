@@ -310,8 +310,14 @@ struct BoardView: View {
     private func selectionToolbarPosition(for item: BoardItem) -> CGPoint {
         let zoom = vm.zoom
         let pan = vm.pan
-        let centerX = (CGFloat(item.x) + CGFloat(item.width) / 2) * zoom + pan.width
-        let topY = CGFloat(item.y) * zoom + pan.height
+        let cx = CGFloat(item.x) + CGFloat(item.width) / 2
+        let cy = CGFloat(item.y) + CGFloat(item.height) / 2
+        // Account for rotation: the toolbar sits above the highest point of the
+        // rotated rect so it tracks the element as it turns.
+        let θ = CGFloat(item.rotation) * .pi / 180
+        let halfH = (abs(CGFloat(item.width) * sin(θ)) + abs(CGFloat(item.height) * cos(θ))) / 2
+        let centerX = cx * zoom + pan.width
+        let topY = (cy - halfH) * zoom + pan.height
         // The rotation handle knob sits 22 pt above the item's top edge; push the
         // toolbar far enough above that so it never covers the handle.
         let y = max(60, topY - 54)

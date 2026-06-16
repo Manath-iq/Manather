@@ -162,6 +162,174 @@ struct AddMenuView: View {
     }
 }
 
+// MARK: - Library switcher menu
+
+/// The styled menu shown by the "Library ▾" brand mark — same panel look as the
+/// add (+) and right-click menus. Lists every library (a check marks the active
+/// one) and offers importing a shared library ZIP.
+struct LibraryMenuView: View {
+    let isDarkMode: Bool
+    let libraries: [Library]
+    let activeID: UUID?
+    let onSelect: (Library) -> Void
+    let onImport: () -> Void
+    let onDismiss: () -> Void
+
+    private var palette: MenuPalette { MenuPalette(isDarkMode: isDarkMode) }
+
+    var body: some View {
+        VStack(spacing: 2) {
+            ForEach(libraries) { library in
+                LibraryMenuRow(
+                    name: library.name,
+                    isActive: library.id == activeID,
+                    palette: palette
+                ) {
+                    onDismiss(); onSelect(library)
+                }
+            }
+
+            MenuDivider(palette: palette)
+
+            ContextMenuRow(
+                item: AssetMenuItem(title: "Import Library (ZIP)…", systemImage: "square.and.arrow.down") {
+                    onDismiss(); onImport()
+                },
+                palette: palette
+            )
+        }
+        .padding(6)
+        .frame(width: 240)
+        .menuPanelChrome(palette)
+        .fixedSize()
+    }
+}
+
+/// A library row: a books glyph, the name, and a trailing accent check when it's
+/// the one currently open.
+private struct LibraryMenuRow: View {
+    let name: String
+    let isActive: Bool
+    let palette: MenuPalette
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: "books.vertical")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(palette.icon)
+                    .frame(width: 18, alignment: .center)
+
+                Text(name)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(palette.label)
+                    .lineLimit(1)
+
+                Spacer(minLength: 8)
+
+                if isActive {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(ManatherTheme.accent)
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(isHovered ? palette.hover : Color.clear)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+    }
+}
+
+// MARK: - Settings menu
+
+/// The Settings panel, shown by the gear icon — same styled panel as the other
+/// menus (replaces the old native popover). Theme-aware via MenuPalette.
+struct SettingsPanelView: View {
+    let isDarkMode: Bool
+    let libraryName: String
+    let assetCount: Int
+    let onExportLibrary: () -> Void
+    let onLoadDemo: () -> Void
+    let onClearCache: () -> Void
+    let onDismiss: () -> Void
+
+    private var palette: MenuPalette { MenuPalette(isDarkMode: isDarkMode) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            // Header
+            HStack(spacing: 8) {
+                Image(systemName: "gearshape.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(palette.icon)
+                Text("Settings")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(palette.label)
+                Spacer()
+            }
+            .padding(.horizontal, 10)
+            .padding(.top, 6)
+            .padding(.bottom, 4)
+
+            // Current-library summary card.
+            HStack(spacing: 9) {
+                Image(systemName: "books.vertical")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(palette.icon)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(libraryName)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(palette.label)
+                        .lineLimit(1)
+                    Text("\(assetCount) \(assetCount == 1 ? "item" : "items")")
+                        .font(.system(size: 10))
+                        .foregroundStyle(palette.secondary)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(palette.hover)
+            )
+            .padding(.horizontal, 4)
+            .padding(.vertical, 2)
+
+            ContextMenuRow(item: AssetMenuItem(title: "Export Library (.zip)", systemImage: "square.and.arrow.up") {
+                onDismiss(); onExportLibrary()
+            }, palette: palette)
+
+            ContextMenuRow(item: AssetMenuItem(title: "Load Demo Assets", systemImage: "sparkles") {
+                onLoadDemo(); onDismiss()
+            }, palette: palette)
+
+            ContextMenuRow(item: AssetMenuItem(title: "Clear Image Cache", systemImage: "trash", isDestructive: true) {
+                onClearCache(); onDismiss()
+            }, palette: palette)
+
+            MenuDivider(palette: palette)
+
+            // Global screenshot hotkey — keeps its own controls, sits in-panel.
+            HotKeyRecorderView()
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+        }
+        .padding(6)
+        .frame(width: 258)
+        .menuPanelChrome(palette)
+        .fixedSize()
+    }
+}
+
 // MARK: - Menu panel
 
 /// The styled dark menu panel. Supports a main page plus "Add to collection /

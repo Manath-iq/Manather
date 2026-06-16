@@ -9,6 +9,25 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 _Nothing yet — your next change goes here._
 
+## [0.1.5] — 2026-06-16
+
+### Added
+- **Switchable libraries**: the “Library ▾” menu now holds several libraries you
+  can switch between, each with its own saves and collections.
+- **Share a library as a ZIP**: export a whole library from Settings and send it
+  to a friend, who imports it back as a new library from the Library menu —
+  collections, names, prompts, notes and tags all come across.
+
+### Changed
+- Settings is now a styled panel matching the app’s other menus (was a plain
+  system popover).
+- The New Board dialog adapts to light/dark mode like the New Collection one.
+- Small search-field polish.
+
+### Fixed
+- Rotating a board object now pivots around its own center, so a rotated item no
+  longer drifts away and drags in the right direction; its toolbar tracks it.
+
 ## [0.1.4] — 2026-06-16
 
 ### Added

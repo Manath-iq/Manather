@@ -17,9 +17,11 @@ struct NewBoardSheet: View {
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @AppStorage("isDarkMode") private var isDarkMode = false
 
     @State private var title = ""
     @State private var details = ""
+    @FocusState private var isFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -29,7 +31,7 @@ struct NewBoardSheet: View {
                     .foregroundStyle(ManatherTheme.accent)
                 Text("New Board")
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(ManatherTheme.ink)
             }
             .frame(maxWidth: .infinity, alignment: .center)
             .padding(.bottom, 4)
@@ -38,72 +40,74 @@ struct NewBoardSheet: View {
             TextField("e.g. Landing, Logo, Color mood", text: $title)
                 .textFieldStyle(.plain)
                 .font(.system(size: 13))
-                .foregroundStyle(.white)
+                .foregroundStyle(ManatherTheme.ink)
+                .focused($isFocused)
+                .onSubmit { create() }
                 .padding(8)
                 .background(fieldBackground)
 
             fieldLabel("Description (optional)")
             TextEditor(text: $details)
                 .font(.system(size: 13))
-                .foregroundStyle(.white)
+                .foregroundStyle(ManatherTheme.ink)
                 .scrollContentBackground(.hidden)
                 .padding(8)
                 .frame(height: 90)
-                .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(Color.black.opacity(0.28))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .stroke(ManatherTheme.viewerBorder, lineWidth: 1)
-                        )
-                )
+                .background(fieldBackground)
 
             HStack(spacing: 12) {
                 Spacer()
                 Button("Cancel") { dismiss() }
                     .buttonStyle(.microAnimated)
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.7))
+                    .foregroundStyle(ManatherTheme.ink.opacity(0.75))
                     .padding(.horizontal, 16)
                     .padding(.vertical, 6)
                     .background(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .fill(Color.white.opacity(0.10))
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .fill(isDarkMode ? Color.white.opacity(0.10) : Color.black.opacity(0.06))
                     )
 
                 Button("Create Board") { create() }
                     .buttonStyle(.microAnimated)
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 6)
                     .background(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
                             .fill(ManatherTheme.accent)
                     )
             }
             .padding(.top, 4)
         }
         .padding(20)
-        .frame(width: 440, height: 320)
+        .frame(width: 440)
         .background(
-            VisualEffectView(material: .hudWindow, blendingMode: .withinWindow, forceDark: true)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(ManatherTheme.paper)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(ManatherTheme.hairline, lineWidth: 1)
+                )
         )
+        .preferredColorScheme(isDarkMode ? .dark : .light)
+        .onAppear { isFocused = true }
     }
 
     private var fieldBackground: some View {
-        RoundedRectangle(cornerRadius: 6, style: .continuous)
-            .fill(ManatherTheme.viewerField)
+        RoundedRectangle(cornerRadius: 7, style: .continuous)
+            .fill(isDarkMode ? Color.white.opacity(0.06) : Color.black.opacity(0.04))
             .overlay(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .stroke(ManatherTheme.viewerBorder, lineWidth: 1)
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .stroke(ManatherTheme.hairline, lineWidth: 1)
             )
     }
 
     private func fieldLabel(_ text: String) -> some View {
         Text(text)
             .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(.white.opacity(0.62))
+            .foregroundStyle(ManatherTheme.mutedInk)
             .textCase(.uppercase)
             .tracking(0.7)
     }

@@ -24,10 +24,14 @@ final class AssetCollection {
     @Attribute(.unique) var id: UUID
     var name: String
     var dateAdded: Date
+    // Which library this collection belongs to (nil = adopted by the default
+    // library on first launch — see LibraryManager.adoptOrphans).
+    var libraryID: UUID? = nil
 
-    init(name: String) {
+    init(name: String, libraryID: UUID? = nil) {
         self.id = UUID()
         self.name = name
         self.dateAdded = Date()
+        self.libraryID = libraryID ?? LibraryManager.activeLibraryID
     }
 }

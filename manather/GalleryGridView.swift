@@ -66,6 +66,8 @@ struct GalleryGridView: View {
     @State private var contextTarget: ContextTarget?
     /// Whether the custom "+" (add) menu is open.
     @State private var showAddMenu = false
+    /// Whether the "Library ▾" switcher menu is open.
+    @State private var showLibraryMenu = false
 
     // Boards tab: all boards the user created (across projects).
     @Query(sort: \Board.dateModified, order: .reverse) private var allBoards: [Board]
@@ -74,6 +76,11 @@ struct GalleryGridView: View {
 
     @Query(sort: \AssetCollection.dateAdded, order: .reverse) private var savedCollections: [AssetCollection]
     @State private var showNewCollectionSheet = false
+
+    // Libraries the user can switch between (the "Library ▾" menu). The active
+    // one is mirrored in AppStorage so model code can read it too.
+    @Query(sort: \Library.dateCreated) private var libraries: [Library]
+    @AppStorage("activeLibraryID") private var activeLibraryIDString: String = ""
     /// When set, the Collections tab shows this collection's contents in-place
     /// (a dedicated browse screen) instead of the grid of collection folders.
     @State private var openCollection: String? = nil
@@ -88,6 +95,21 @@ struct GalleryGridView: View {
         selectedCategory == .trash
     }
 
+    // MARK: - Active library
+
+    private var activeLibraryID: UUID? { UUID(uuidString: activeLibraryIDString) }
+
+    /// Collections belonging to the active library (before seeding, when no id is
+    /// set, fall back to all so nothing disappears).
+    private var activeCollections: [AssetCollection] {
+        guard let id = activeLibraryID else { return savedCollections }
+        return savedCollections.filter { $0.libraryID == id }
+    }
+
+    private var currentLibraryName: String {
+        libraries.first { $0.id == activeLibraryID }?.name ?? libraries.first?.name ?? "Library"
+    }
+
     // Computed once per render from the full asset list — passed into cards to avoid per-card @Query
     private var allCollections: [String] {
         Array(Set(assets.filter { !$0.isDeleted && !$0.isTrash }.compactMap { $0.collectionName })).sorted()
@@ -96,7 +118,7 @@ struct GalleryGridView: View {
     /// The canonical list of every collection: real `AssetCollection` objects
     /// (including empty ones) plus any legacy names still living only on assets.
     private var collectionNames: [String] {
-        Set(savedCollections.map(\.name)).union(allCollections).sorted()
+        Set(activeCollections.map(\.name)).union(allCollections).sorted()
     }
 
     /// Live assets belonging to `name` ("Unassigned" = saves not in any
@@ -258,6 +280,18 @@ struct GalleryGridView: View {
                     .zIndex(12)
             }
 
+            // Custom "Library ▾" switcher menu (same styled panel).
+            if showLibraryMenu {
+                libraryMenuOverlay
+                    .zIndex(13)
+            }
+
+            // Custom Settings menu (same styled panel).
+            if showSettingsPopover {
+                settingsMenuOverlay
+                    .zIndex(13)
+            }
+
             // A board opened from the Boards tab.
             if let board = openBoard {
                 BoardView(board: board) {
@@ -322,6 +356,9 @@ struct GalleryGridView: View {
             NewCollectionSheet(existingNames: collectionNames) { _ in }
         }
         .onAppear {
+            // Make sure a library exists and is active before any seeding below,
+            // so new collection objects get stamped with the right library.
+            LibraryManager.ensureActive(context: modelContext)
             let pendingLinks = assets.filter { $0.assetType == .webLink && $0.relativeFilePath.isEmpty }
             for asset in pendingLinks {
                 WebsiteScreenshotManager.shared.generateScreenshot(for: asset, in: modelContext)
@@ -439,16 +476,9 @@ struct GalleryGridView: View {
                 .frame(width: 28, height: 28)
                 .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
 
-            HStack(spacing: 5) {
-                Text("Library")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Color.primary)
-                
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(Color.primary.opacity(0.3))
-            }
-            
+            libraryMenu
+
+
             // Collapsed search — icon only, expands on click (matches GatherOS)
             if isSearchExpanded {
                 HStack(spacing: 6) {
@@ -483,8 +513,12 @@ struct GalleryGridView: View {
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
                 .background(
-                    RoundedRectangle(cornerRadius: 8)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(Color.primary.opacity(0.06))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(ManatherTheme.hairline, lineWidth: 1)
+                        )
                 )
                 .transition(.scale(scale: 0.9, anchor: .leading).combined(with: .opacity))
             } else {
@@ -501,6 +535,102 @@ struct GalleryGridView: View {
                 .help("Search (⌘F)")
             }
         }
+    }
+
+    // MARK: - Library switcher
+
+    /// The "Library ▾" button. Opens a custom styled menu (see libraryMenuOverlay)
+    /// instead of a native Menu — that's what removes the blue focus ring and lets
+    /// the dropdown match the app's add/right-click menus.
+    private var libraryMenu: some View {
+        Button {
+            withAnimation(ManatherTheme.overlayMotion) { showLibraryMenu.toggle() }
+        } label: {
+            HStack(spacing: 5) {
+                Text(currentLibraryName)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Color.primary)
+
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(Color.primary.opacity(0.3))
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .focusEffectDisabled()
+    }
+
+    /// Dimmed backdrop + the styled library menu, anchored under the brand mark.
+    private var libraryMenuOverlay: some View {
+        ZStack(alignment: .topLeading) {
+            Color.black.opacity(0.18)
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture { closeLibraryMenu() }
+
+            LibraryMenuView(
+                isDarkMode: isDarkMode,
+                libraries: libraries,
+                activeID: activeLibraryID,
+                onSelect: { switchLibrary(to: $0) },
+                onImport: { importLibrary() },
+                onDismiss: { closeLibraryMenu() }
+            )
+            // Sit just below the "My Library" label (brand icon + spacing).
+            .padding(.leading, 56)
+            .padding(.top, ManatherTheme.titleBarInset + 44)
+            .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .topLeading)))
+        }
+        .onExitCommand { closeLibraryMenu() }
+    }
+
+    private func closeLibraryMenu() {
+        withAnimation(.easeOut(duration: 0.14)) { showLibraryMenu = false }
+    }
+
+    private func switchLibrary(to library: Library) {
+        guard library.id != activeLibraryID else { return }
+        LibraryManager.setActive(library.id)
+        // Drop any view state that belongs to the library we're leaving.
+        activeCollectionFilter = nil
+        activeColorFilter = nil
+        openCollection = nil
+        selectedAsset = nil
+        selectedTab = .library
+    }
+
+    /// Pick a `.zip` exported from Manather and rebuild it as a new library, then
+    /// switch to it. Uses a modal panel so the work stays on the main actor.
+    private func importLibrary() {
+        let panel = NSOpenPanel()
+        panel.title = "Import Library"
+        panel.allowedContentTypes = [.zip]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.prompt = "Import"
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            let library = try LibraryArchive.importArchive(from: url, context: modelContext)
+            switchLibrary(to: library)
+        } catch {
+            let alert = NSAlert()
+            alert.messageText = "Import failed"
+            alert.informativeText = error.localizedDescription
+            alert.alertStyle = .warning
+            alert.runModal()
+        }
+    }
+
+    /// Export the active library (its assets + collections) to a shareable ZIP.
+    private func exportCurrentLibrary() {
+        let exportable = assets.filter { !$0.isDeleted && !$0.isTrash }
+        LibraryArchive.export(
+            libraryName: currentLibraryName,
+            assets: exportable,
+            collections: activeCollections.map(\.name)
+        )
     }
 
     private func expandSearch() {
@@ -596,12 +726,37 @@ struct GalleryGridView: View {
                 }
             }
             toolbarIconButton(icon: "gearshape", tooltip: "Settings") {
-                showSettingsPopover = true
-            }
-            .popover(isPresented: $showSettingsPopover, arrowEdge: .bottom) {
-                settingsPopoverContent
+                withAnimation(ManatherTheme.overlayMotion) { showSettingsPopover.toggle() }
             }
         }
+    }
+
+    /// Dimmed backdrop + the styled settings panel, anchored under the gear icon.
+    private var settingsMenuOverlay: some View {
+        ZStack(alignment: .topTrailing) {
+            Color.black.opacity(0.18)
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture { closeSettings() }
+
+            SettingsPanelView(
+                isDarkMode: isDarkMode,
+                libraryName: currentLibraryName,
+                assetCount: assets.filter { !$0.isDeleted && !$0.isTrash }.count,
+                onExportLibrary: { exportCurrentLibrary() },
+                onLoadDemo: { loadDemoAssets() },
+                onClearCache: { ImageCache.shared.clearAll() },
+                onDismiss: { closeSettings() }
+            )
+            .padding(.trailing, 16)
+            .padding(.top, ManatherTheme.titleBarInset + 44)
+            .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .topTrailing)))
+        }
+        .onExitCommand { closeSettings() }
+    }
+
+    private func closeSettings() {
+        withAnimation(.easeOut(duration: 0.14)) { showSettingsPopover = false }
     }
 
     private func toolbarIconButton(icon: String, tooltip: String, action: @escaping () -> Void) -> some View {
@@ -614,54 +769,6 @@ struct GalleryGridView: View {
         }
         .buttonStyle(.plain)
         .help(tooltip)
-    }
-
-    private var settingsPopoverContent: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Settings")
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(isDarkMode ? Color.white : Color.primary)
-            
-            Divider()
-            
-            VStack(alignment: .leading, spacing: 6) {
-                Text("DATA SUMMARY")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                
-                HStack {
-                    Text("Total assets:")
-                    Spacer()
-                    Text("\(assets.count)")
-                        .bold()
-                }
-                .font(.system(size: 11))
-            }
-            
-            Button("Clear Image Cache") {
-                ImageCache.shared.clearAll()
-                showSettingsPopover = false
-            }
-            .buttonStyle(.plain)
-            .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(.red)
-            
-            Button("Load Demo Assets") {
-                loadDemoAssets()
-                showSettingsPopover = false
-            }
-            .buttonStyle(.plain)
-            .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(ManatherTheme.accent)
-
-            Divider()
-
-            HotKeyRecorderView()
-
-            Spacer(minLength: 0)
-        }
-        .padding(16)
-        .frame(width: 248, height: 300)
     }
 
     private func loadDemoAssets() {
@@ -1285,7 +1392,7 @@ struct GalleryGridView: View {
     /// AssetCollection object, so older libraries gain manageable collections.
     /// Idempotent — safe to run on every launch.
     private func seedCollectionsFromAssets() {
-        let existing = Set(savedCollections.map(\.name))
+        let existing = Set(activeCollections.map(\.name))
         let fromAssets = Set(assets.filter { !$0.isDeleted }.compactMap { $0.collectionName })
         for name in fromAssets where !existing.contains(name) {
             modelContext.insert(AssetCollection(name: name))
@@ -1297,7 +1404,7 @@ struct GalleryGridView: View {
     private func createCollectionEntity(_ name: String) {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        let exists = savedCollections.contains {
+        let exists = activeCollections.contains {
             $0.name.caseInsensitiveCompare(trimmed) == .orderedSame
         }
         if !exists {
@@ -1311,7 +1418,7 @@ struct GalleryGridView: View {
         for asset in assets where asset.collectionName == name {
             asset.collectionName = nil
         }
-        for collection in savedCollections where collection.name == name {
+        for collection in activeCollections where collection.name == name {
             modelContext.delete(collection)
         }
         if activeCollectionFilter == name {
