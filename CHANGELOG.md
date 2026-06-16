@@ -9,6 +9,22 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 _Nothing yet — your next change goes here._
 
+## [0.1.6] — 2026-06-16
+
+### Added
+- **Export a collection tailored for an AI agent.** When you export a collection
+  you now pick a target and Manather lays the files out the way that agent reads
+  them automatically:
+  - **Claude Code** — `CLAUDE.md`, each skill as `.claude/skills/<name>/SKILL.md`
+    (with the name/description header Claude expects), and a real `.mcp.json`.
+  - **AGENTS.md (universal)** — a single `AGENTS.md`, the open standard read by
+    Cursor, Codex, Copilot, Gemini and others, plus `mcp.json`.
+  - **Generic context pack** — the original `CONTEXT.md` + `manifest.json`,
+    unchanged.
+
+  All options still copy images/video into `assets/` and code snippets into
+  `snippets/`, and gather your MCP servers into one config file.
+
 ## [0.1.5] — 2026-06-16
 
 ### Added
