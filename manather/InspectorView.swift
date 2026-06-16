@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import SwiftData
 import AppKit
 
 // MARK: - Color Constants
@@ -24,6 +25,10 @@ private enum InspectorColors {
 
 struct InspectorView: View {
     @Binding var asset: AssetItem?
+
+    @Query(sort: \AssetCollection.dateAdded, order: .reverse) private var savedCollections: [AssetCollection]
+
+    private var collectionNames: [String] { savedCollections.map(\.name) }
 
     @State private var dominantColors: [Color] = []
     @State private var colorHexes: [String] = []
@@ -193,7 +198,8 @@ struct InspectorView: View {
                     value: Binding(
                         get: { asset.collectionName },
                         set: { asset.collectionName = $0 }
-                    )
+                    ),
+                    options: collectionNames
                 )
                 .padding(.bottom, 16)
 
@@ -617,10 +623,11 @@ struct ChipAssignSection: View {
     let icon: String
     let title: String
     @Binding var value: String?
+    var options: [String] = []
 
+    @State private var showPicker = false
     @State private var newText = ""
-    @State private var isAdding = false   // field visibility
-    @FocusState private var isFocused: Bool // keyboard focus (set after field exists)
+    @FocusState private var isNewFieldFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -660,19 +667,8 @@ struct ChipAssignSection: View {
                     HStack(spacing: 4) {
                         Image(systemName: "plus")
                             .font(.system(size: 8, weight: .bold))
-
-                        if isAdding {
-                            TextField("name", text: $newText)
-                                .textFieldStyle(.plain)
-                                .font(.system(size: 11))
-                                .foregroundStyle(Color.white)
-                                .frame(minWidth: 60, maxWidth: 110)
-                                .focused($isFocused)
-                                .onSubmit { commit() }
-                        } else {
-                            Text("Add")
-                                .font(.system(size: 11, weight: .medium))
-                        }
+                        Text("Add")
+                            .font(.system(size: 11, weight: .medium))
                     }
                     .foregroundStyle(Color.white.opacity(0.55))
                     .padding(.horizontal, 9)
@@ -687,27 +683,78 @@ struct ChipAssignSection: View {
                                 )
                             )
                     )
-                    .onTapGesture {
-                        isAdding = true
-                        // Focus once the field is in the hierarchy
-                        DispatchQueue.main.async { isFocused = true }
+                    .onTapGesture { showPicker = true }
+                    .popover(isPresented: $showPicker, arrowEdge: .bottom) {
+                        collectionPickerPopover
                     }
                 }
             }
         }
-        .onChange(of: isFocused) { _, focused in
-            if !focused && isAdding { commit() }
+    }
+
+    private var collectionPickerPopover: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if !options.isEmpty {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(options, id: \.self) { name in
+                            Button {
+                                value = name
+                                showPicker = false
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "folder.fill")
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(ManatherTheme.accent)
+                                    Text(name)
+                                        .font(.system(size: 13, weight: .medium))
+                                        .foregroundStyle(.primary)
+                                    Spacer()
+                                }
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 9)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.vertical, 6)
+                }
+                .frame(maxHeight: 220)
+
+                Divider()
+            }
+
+            // New collection inline
+            HStack(spacing: 8) {
+                Image(systemName: "folder.badge.plus")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                TextField("New collection…", text: $newText)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 13))
+                    .focused($isNewFieldFocused)
+                    .onSubmit { commitNew() }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+        }
+        .frame(width: 230)
+        .onAppear {
+            // Focus the text field only when there are no existing options
+            if options.isEmpty {
+                DispatchQueue.main.async { isNewFieldFocused = true }
+            }
         }
     }
 
-    private func commit() {
+    private func commitNew() {
         let name = newText.trimmingCharacters(in: .whitespacesAndNewlines)
         if !name.isEmpty {
             value = name
+            showPicker = false
         }
         newText = ""
-        isAdding = false
-        isFocused = false
     }
 }
 
