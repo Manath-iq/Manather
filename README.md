@@ -21,6 +21,14 @@ then export any project as a ready-to-use **context pack** for your AI agent.
   <img src="https://img.shields.io/badge/⬇%20Download%20for%20macOS-Latest%20.dmg-2563eb?style=for-the-badge&logo=apple&logoColor=white" alt="Download the latest macOS .dmg" />
 </a>
 
+<br/>
+
+<a href="https://github.com/Manath-iq/Manather/releases">
+  <img src="https://img.shields.io/github/downloads/Manath-iq/Manather/total?style=flat-square&color=22c55e&label=%E2%AC%87%20downloads%20and%20counting&labelColor=0b1220" alt="Total downloads" />
+</a>
+
+<br/>
+
 <sub>Apple Silicon · macOS 14+ · free & open source — or [build from source](#build-from-source)</sub>
 
 <br/><br/>
