@@ -52,10 +52,13 @@ enum AIClient {
         guard let id = store.defaultProviderID, let provider = AIProvider.provider(id: id) else { return nil }
         let key = store.apiKey(for: provider)
         if provider.kind.needsKey && key.isEmpty { return nil }
+        // No model means the live list hasn't been loaded yet — not ready to call.
+        let model = store.selectedModel(for: provider)
+        if model.isEmpty { return nil }
         return ResolvedProvider(
             provider: provider, key: key,
             baseURL: trimSlash(store.baseURL(for: provider)),
-            model: store.selectedModel(for: provider)
+            model: model
         )
     }
 

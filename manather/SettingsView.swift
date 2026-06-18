@@ -282,6 +282,8 @@ private struct ProviderRow: View {
     private var header: some View {
         Button {
             withAnimation(ManatherTheme.uiMotion) { expanded.toggle() }
+            // Opening a configured provider loads its live models if we don't have them yet.
+            if expanded { Task { await store.refreshModelsIfNeeded(provider) } }
         } label: {
             HStack(spacing: 10) {
                 Image(systemName: provider.iconSystemName)
@@ -365,6 +367,8 @@ private struct ProviderRow: View {
                     Button("Save") {
                         store.setAPIKey(keyDraft, for: provider)
                         keyDraft = ""; editingKey = false; showKey = false
+                        // Saved a key → immediately pull the models it can use.
+                        Task { await store.refreshModels(provider) }
                     }
                     .buttonStyle(SettingsButtonStyle(prominent: true, enabled: !keyDraft.isEmpty))
                     .disabled(keyDraft.isEmpty)
@@ -395,19 +399,43 @@ private struct ProviderRow: View {
 
     // MARK: Model
 
-    private var modelSection: some View {
+    @ViewBuilder private var modelSection: some View {
         let models = store.discoveredModels(for: provider)
-        let current = store.selectedModel(for: provider)
-        let options = Array(Set(models + (current.isEmpty ? [] : [current]))).sorted()
-        return VStack(alignment: .leading, spacing: 4) {
-            SettingsStyle.fieldLabel("Default model")
-            Picker("", selection: Binding(
-                get: { current },
-                set: { store.setSelectedModel($0, for: provider) }
-            )) {
-                ForEach(options, id: \.self) { Text($0).tag($0) }
+        let isLoading = { if case .testing = store.result(for: provider) { return true }; return false }()
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                SettingsStyle.fieldLabel("Default model")
+                Spacer()
+                if !models.isEmpty {
+                    Button { Task { await store.refreshModels(provider) } } label: {
+                        Image(systemName: "arrow.clockwise").font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(ManatherTheme.mutedInk)
+                    }
+                    .buttonStyle(.plain).help("Reload the model list from the provider")
+                    .disabled(isLoading)
+                }
             }
-            .labelsHidden().pickerStyle(.menu).tint(ManatherTheme.ink)
+
+            if isLoading {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text("Loading models…").font(.system(size: 12)).foregroundStyle(ManatherTheme.mutedInk)
+                }
+            } else if models.isEmpty {
+                Text(store.isConfigured(provider)
+                     ? "No models loaded yet. Use “Test connection” to fetch the models available for this key."
+                     : "Add an API key to load the available models.")
+                    .font(.system(size: 12)).foregroundStyle(ManatherTheme.mutedInk)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Picker("", selection: Binding(
+                    get: { store.selectedModel(for: provider) },
+                    set: { store.setSelectedModel($0, for: provider) }
+                )) {
+                    ForEach(models, id: \.self) { Text($0).tag($0) }
+                }
+                .labelsHidden().pickerStyle(.menu).tint(ManatherTheme.ink)
+            }
         }
     }
 

@@ -9,6 +9,20 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 _Nothing yet — your next change goes here._
 
+## [0.1.9] — 2026-06-18
+
+### Changed
+- **AI model selection now comes from your API key, not a built-in list.** When
+  you save a provider's key (or open a connected provider), the app fetches the
+  real models available for that key and the picker lists only those. The old
+  hardcoded model names are gone from the UI — they only hint which model to
+  auto-select by default.
+- **Smarter default model.** After the live list loads, the app auto-picks a
+  sensible chat model (skipping embeddings, image, audio and similar), preferring
+  a known flagship when your key exposes one. You can still change it any time.
+- The fetched model list is cached, so it survives relaunches instead of needing
+  a manual "Test connection" each session. A ⟳ button reloads it on demand.
+
 ## [0.1.8] — 2026-06-17
 
 ### Fixed

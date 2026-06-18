@@ -44,8 +44,11 @@ final class AIProviderStore {
 
     func setAPIKey(_ key: String, for provider: AIProvider) {
         KeychainStore.set(key, account: keyAccount(provider))
-        // Editing the key invalidates the previous test result.
+        // A new/removed key invalidates the previous test result and the model
+        // list it produced — those models belonged to the old key.
         results[provider.id] = .idle
+        setCachedModels([], for: provider)
+        if key.isEmpty { UserDefaults.standard.removeObject(forKey: "ai.model.\(provider.id)") }
     }
 
     private func keyAccount(_ provider: AIProvider) -> String { "apikey.\(provider.id)" }
@@ -63,11 +66,28 @@ final class AIProviderStore {
         UserDefaults.standard.set(url, forKey: "ai.baseURL.\(provider.id)")
     }
 
+    // MARK: - Discovered models (live, cached in UserDefaults)
+
+    /// The real model list pulled from the provider with the user's key. Persisted
+    /// so it survives relaunches — we only refetch when the user asks or saves a key.
+    func cachedModels(for provider: AIProvider) -> [String] {
+        UserDefaults.standard.stringArray(forKey: "ai.models.\(provider.id)") ?? []
+    }
+
+    private func setCachedModels(_ models: [String], for provider: AIProvider) {
+        UserDefaults.standard.set(models, forKey: "ai.models.\(provider.id)")
+    }
+
     // MARK: - Selected model (UserDefaults)
 
+    /// The model AI features should use. Returns the user's pick if it's still a
+    /// real model for this key; otherwise the best auto-pick from the live list.
+    /// Empty string means "no models loaded yet" — callers must treat that as not ready.
     func selectedModel(for provider: AIProvider) -> String {
         let stored = UserDefaults.standard.string(forKey: "ai.model.\(provider.id)") ?? ""
-        return stored.isEmpty ? (provider.suggestedModels.first ?? "") : stored
+        let models = cachedModels(for: provider)
+        if !stored.isEmpty, models.isEmpty || models.contains(stored) { return stored }
+        return bestDefaultModel(for: provider, from: models)
     }
 
     func setSelectedModel(_ model: String, for provider: AIProvider) {
@@ -83,16 +103,39 @@ final class AIProviderStore {
         results[provider.id] ?? .idle
     }
 
-    /// Models discovered by the last successful test, if any (for the model picker).
+    /// The live models for the model picker (empty until a fetch succeeds).
     func discoveredModels(for provider: AIProvider) -> [String] {
-        if case .success(let models) = result(for: provider), !models.isEmpty { return models }
-        return provider.suggestedModels
+        cachedModels(for: provider)
     }
 
-    // MARK: - Test connection
+    /// Picks a sensible chat model out of a live list: skips non-chat models
+    /// (embeddings, image, audio, moderation…), prefers a known flagship if the
+    /// key exposes one, otherwise the first remaining chat model.
+    private func bestDefaultModel(for provider: AIProvider, from models: [String]) -> String {
+        guard !models.isEmpty else { return "" }
+        let chat = models.filter { Self.isLikelyChatModel($0) }
+        let pool = chat.isEmpty ? models : chat
+        if let preferred = provider.suggestedModels.first(where: { pool.contains($0) }) {
+            return preferred
+        }
+        return pool.first ?? models[0]
+    }
 
+    /// Heuristic to keep non-conversational models out of the default pick.
+    private static func isLikelyChatModel(_ id: String) -> Bool {
+        let lower = id.lowercased()
+        let excluded = ["embed", "embedding", "tts", "whisper", "transcribe", "speech",
+                        "audio", "image", "dall", "imagen", "moderation", "rerank",
+                        "search", "similarity", "guard", "aqa"]
+        return !excluded.contains { lower.contains($0) }
+    }
+
+    // MARK: - Fetch models
+
+    /// Hits the provider's `/models` endpoint with the saved key, caches the live
+    /// list, and makes sure the selected model is one that actually exists.
     @MainActor
-    func test(_ provider: AIProvider) async {
+    func refreshModels(_ provider: AIProvider) async {
         let key = apiKey(for: provider)
         if provider.kind.needsKey && key.isEmpty {
             results[provider.id] = .failure("Enter an API key first")
@@ -102,8 +145,28 @@ final class AIProviderStore {
         let outcome = await ProviderConnectionService.test(
             provider: provider, key: key, baseURL: baseURL(for: provider)
         )
+        if case .success(let models) = outcome, !models.isEmpty {
+            setCachedModels(models, for: provider)
+            // Drop a stale pick and auto-select a default if needed.
+            let current = UserDefaults.standard.string(forKey: "ai.model.\(provider.id)") ?? ""
+            if current.isEmpty || !models.contains(current) {
+                setSelectedModel(bestDefaultModel(for: provider, from: models), for: provider)
+            }
+        }
         results[provider.id] = outcome
     }
+
+    /// Fetches models only when we don't already have a cached list — used when a
+    /// provider row opens so the picker fills in without a manual click.
+    @MainActor
+    func refreshModelsIfNeeded(_ provider: AIProvider) async {
+        guard isConfigured(provider), cachedModels(for: provider).isEmpty else { return }
+        await refreshModels(provider)
+    }
+
+    /// Back-compat alias: "Test connection" = fetch the live model list.
+    @MainActor
+    func test(_ provider: AIProvider) async { await refreshModels(provider) }
 }
 
 // MARK: - Connection service

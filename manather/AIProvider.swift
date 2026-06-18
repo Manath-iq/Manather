@@ -34,7 +34,10 @@ struct AIProvider: Identifiable, Hashable {
     let baseURLEditable: Bool
     let keyPrefixHint: String      // e.g. "sk-or-", shown as a hint; empty = none
     let docsURL: String
-    let suggestedModels: [String]  // fallback list before/if we can't fetch live
+    /// Preferred models, best first. NOT shown in the UI — the picker only ever
+    /// lists models fetched live from the key. This is just a hint for auto-picking
+    /// a sensible default: if the key exposes one of these, we select it.
+    let suggestedModels: [String]
 
     static func == (lhs: AIProvider, rhs: AIProvider) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
