@@ -194,13 +194,13 @@ struct InspectorView: View {
                 )
                 .padding(.bottom, 20)
 
-                // Collections — chips with ×
+                // Collections — chips with × (an asset can be in several at once)
                 ChipAssignSection(
                     icon: "folder",
                     title: "Collections",
-                    value: Binding(
-                        get: { asset.collectionName },
-                        set: { asset.collectionName = $0 }
+                    values: Binding(
+                        get: { asset.collectionNames },
+                        set: { asset.setCollections($0) }
                     ),
                     options: collectionNames
                 )
@@ -342,7 +342,7 @@ struct InspectorView: View {
                     imageWidth: size.width,
                     imageHeight: size.height,
                     typeRaw: "image",
-                    collectionName: asset.collectionName,
+                    collectionNames: asset.collectionNames,
                     tags: tags
                 )
                 withAnimation(.spring(response: 0.4)) { modelContext.insert(newAsset) }
@@ -676,12 +676,15 @@ struct InspectorView: View {
 struct ChipAssignSection: View {
     let icon: String
     let title: String
-    @Binding var value: String?
+    @Binding var values: [String]
     var options: [String] = []
 
     @State private var showPicker = false
     @State private var newText = ""
     @FocusState private var isNewFieldFocused: Bool
+
+    /// Options not already chosen — what the picker offers.
+    private var available: [String] { options.filter { !values.contains($0) } }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -694,14 +697,14 @@ struct ChipAssignSection: View {
             .foregroundStyle(InspectorColors.secondaryText)
 
             FlowLayout(spacing: 6) {
-                if let value {
+                ForEach(values, id: \.self) { value in
                     HStack(spacing: 5) {
                         Image(systemName: icon)
                             .font(.system(size: 9, weight: .medium))
                         Text(value)
                             .font(.system(size: 11, weight: .medium))
                         Button {
-                            self.value = nil
+                            values.removeAll { $0 == value }
                         } label: {
                             Image(systemName: "xmark")
                                 .font(.system(size: 8, weight: .bold))
@@ -717,30 +720,31 @@ struct ChipAssignSection: View {
                             .fill(Color.white.opacity(0.12))
                             .overlay(Capsule().stroke(Color.white.opacity(0.16), lineWidth: 1))
                     )
-                } else {
-                    HStack(spacing: 4) {
-                        Image(systemName: "plus")
-                            .font(.system(size: 8, weight: .bold))
-                        Text("Add")
-                            .font(.system(size: 11, weight: .medium))
-                    }
-                    .foregroundStyle(Color.white.opacity(0.55))
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 5)
-                    .background(
-                        Capsule()
-                            .fill(Color.white.opacity(0.06))
-                            .overlay(
-                                Capsule().stroke(
-                                    Color.white.opacity(0.2),
-                                    style: StrokeStyle(lineWidth: 1, dash: [3, 2])
-                                )
+                }
+
+                // "Add" chip — always present so more collections can be added.
+                HStack(spacing: 4) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 8, weight: .bold))
+                    Text("Add")
+                        .font(.system(size: 11, weight: .medium))
+                }
+                .foregroundStyle(Color.white.opacity(0.55))
+                .padding(.horizontal, 9)
+                .padding(.vertical, 5)
+                .background(
+                    Capsule()
+                        .fill(Color.white.opacity(0.06))
+                        .overlay(
+                            Capsule().stroke(
+                                Color.white.opacity(0.2),
+                                style: StrokeStyle(lineWidth: 1, dash: [3, 2])
                             )
-                    )
-                    .onTapGesture { showPicker = true }
-                    .popover(isPresented: $showPicker, arrowEdge: .bottom) {
-                        collectionPickerPopover
-                    }
+                        )
+                )
+                .onTapGesture { showPicker = true }
+                .popover(isPresented: $showPicker, arrowEdge: .bottom) {
+                    collectionPickerPopover
                 }
             }
         }
@@ -748,13 +752,12 @@ struct ChipAssignSection: View {
 
     private var collectionPickerPopover: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if !options.isEmpty {
+            if !available.isEmpty {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 2) {
-                        ForEach(options, id: \.self) { name in
+                        ForEach(available, id: \.self) { name in
                             Button {
-                                value = name
-                                showPicker = false
+                                add(name)
                             } label: {
                                 HStack(spacing: 8) {
                                     Image(systemName: "folder.fill")
@@ -795,19 +798,22 @@ struct ChipAssignSection: View {
         }
         .frame(width: 230)
         .onAppear {
-            // Focus the text field only when there are no existing options
-            if options.isEmpty {
+            // Focus the text field only when there's nothing to pick from.
+            if available.isEmpty {
                 DispatchQueue.main.async { isNewFieldFocused = true }
             }
         }
     }
 
+    private func add(_ name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !values.contains(trimmed) else { return }
+        values.append(trimmed)
+        showPicker = false
+    }
+
     private func commitNew() {
-        let name = newText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !name.isEmpty {
-            value = name
-            showPicker = false
-        }
+        add(newText)
         newText = ""
     }
 }
@@ -818,6 +824,7 @@ struct TagsSection: View {
     let asset: AssetItem
 
     @State private var newTagText = ""
+    @State private var isTagging = false
     @FocusState private var isAddingTag: Bool
 
     var body: some View {
@@ -889,14 +896,21 @@ struct TagsSection: View {
                     isAddingTag = true
                 }
 
-                // Auto-tag — derives tags from title & prompt words
+                // Auto-tag — vision model looks at the image (falls back to
+                // deriving tags from title & prompt words if AI isn't available).
                 Button {
                     autoTag()
                 } label: {
                     HStack(spacing: 4) {
-                        Text("✦")
-                            .font(.system(size: 9))
-                        Text("Auto-tag")
+                        if isTagging {
+                            ProgressView()
+                                .controlSize(.small)
+                                .tint(.white)
+                        } else {
+                            Text("✦")
+                                .font(.system(size: 9))
+                        }
+                        Text(isTagging ? "Tagging…" : "Auto-tag")
                             .font(.system(size: 11, weight: .medium))
                     }
                     .foregroundStyle(Color.white.opacity(0.85))
@@ -909,6 +923,7 @@ struct TagsSection: View {
                     )
                 }
                 .buttonStyle(.microAnimated)
+                .disabled(isTagging)
             }
         }
         .onChange(of: isAddingTag) { _, focused in
@@ -917,6 +932,33 @@ struct TagsSection: View {
     }
 
     private func autoTag() {
+        guard !isTagging else { return }
+        // For images, ask a vision model to look at the picture. If no AI provider
+        // is connected, or it fails, or the asset isn't an image, fall back to the
+        // keyword heuristic so the button always does something useful.
+        let isVisual = asset.assetType == .image || asset.assetType == .gif
+        guard isVisual, !asset.relativeFilePath.isEmpty else {
+            keywordAutoTag()
+            return
+        }
+
+        isTagging = true
+        let target = asset
+        Task {
+            do {
+                let tags = try await AIClient.suggestTags(for: target)
+                for tag in tags where !target.tags.contains(tag) {
+                    target.tags.append(tag)
+                }
+            } catch {
+                keywordAutoTag()
+            }
+            isTagging = false
+        }
+    }
+
+    /// Offline fallback: derive a few tags from the title and prompt words.
+    private func keywordAutoTag() {
         let stopWords: Set<String> = ["the", "and", "with", "for", "from", "this", "that", "into", "are", "was", "has", "have", "modern", "image", "untitled", "copy"]
         let source = "\(asset.title) \(asset.prompt)"
         let words = source

@@ -124,7 +124,7 @@ struct GalleryGridView: View {
 
     // Computed once per render from the full asset list — passed into cards to avoid per-card @Query
     private var allCollections: [String] {
-        Array(Set(assets.filter { !$0.isDeleted && !$0.isTrash }.compactMap { $0.collectionName })).sorted()
+        Array(Set(assets.filter { !$0.isDeleted && !$0.isTrash }.flatMap { $0.collectionNames })).sorted()
     }
 
     /// The canonical list of every collection: real `AssetCollection` objects
@@ -138,8 +138,8 @@ struct GalleryGridView: View {
     private func assets(inCollection name: String) -> [AssetItem] {
         let live = assets.filter { !$0.isDeleted && !$0.isTrash }
         let items = name == "Unassigned"
-            ? live.filter { $0.collectionName == nil }
-            : live.filter { $0.collectionName == name }
+            ? live.filter { $0.isUnassigned }
+            : live.filter { $0.inCollection(name) }
         return items.sorted { $0.dateAdded > $1.dateAdded }
     }
 
@@ -154,7 +154,7 @@ struct GalleryGridView: View {
         case .all:
             return assets.filter { !$0.isTrash }
         case .unsorted:
-            return assets.filter { !$0.isTrash && $0.collectionName == nil }
+            return assets.filter { !$0.isTrash && $0.isUnassigned }
         case .trash:
             return assets.filter { $0.isTrash }
         }
@@ -164,7 +164,7 @@ struct GalleryGridView: View {
         var items = categoryAssets
 
         if let collectionFilter = activeCollectionFilter {
-            items = items.filter { $0.collectionName == collectionFilter }
+            items = items.filter { $0.inCollection(collectionFilter) }
         }
 
         if let colorFilter = activeColorFilter {
@@ -368,12 +368,13 @@ struct GalleryGridView: View {
             NewCollectionSheet(existingNames: collectionNames) { _ in }
         }
         .sheet(item: $pendingExport) { pending in
-            ExportGoalSheet(target: pending.target, collectionName: pending.name, assets: pending.assets) { goal in
+            ExportGoalSheet(target: pending.target, collectionName: pending.name, assets: pending.assets) { goal, gitInit in
                 ContextPackExporter.export(
                     projectName: pending.name,
                     assets: pending.assets,
                     target: pending.target,
-                    goal: goal
+                    goal: goal,
+                    gitInit: gitInit
                 )
             }
         }
@@ -390,9 +391,14 @@ struct GalleryGridView: View {
             // Projects were merged into Collections — fold any old project tag
             // into a collection of the same name (one-time, idempotent).
             mergeProjectsIntoCollections()
+            // Backfill multi-collection membership for assets saved before it existed.
+            migrateToMultiCollections()
             // Turn any collection names still living only on assets into real
             // AssetCollection objects, so they can be managed like the rest.
             seedCollectionsFromAssets()
+        }
+        .onChange(of: activeLibraryIDString) { _, _ in
+            resetLibraryViewState()
         }
         .confirmationDialog(
             "Are you sure you want to permanently delete \"\(assetToDelete?.title ?? "")\"?",
@@ -596,6 +602,7 @@ struct GalleryGridView: View {
                 libraries: libraries,
                 activeID: activeLibraryID,
                 onSelect: { switchLibrary(to: $0) },
+                onNewLibrary: { createLibrary() },
                 onImport: { importLibrary() },
                 onDismiss: { closeLibraryMenu() }
             )
@@ -614,12 +621,25 @@ struct GalleryGridView: View {
     private func switchLibrary(to library: Library) {
         guard library.id != activeLibraryID else { return }
         LibraryManager.setActive(library.id)
-        // Drop any view state that belongs to the library we're leaving.
+        // View-state reset is handled centrally by onChange(activeLibraryIDString)
+        // so it runs no matter where the switch came from (this menu or Settings).
+    }
+
+    /// Drop any view state tied to the library we're leaving. Fires for every
+    /// switch path — the "Library ▾" menu and the Libraries settings tab.
+    private func resetLibraryViewState() {
         activeCollectionFilter = nil
         activeColorFilter = nil
         openCollection = nil
         selectedAsset = nil
         selectedTab = .library
+    }
+
+    /// Create a brand-new empty library and switch to it (from the "Library ▾" menu).
+    private func createLibrary() {
+        let lib = Library(name: LibraryManager.uniqueName("New Library", context: modelContext))
+        modelContext.insert(lib)
+        switchLibrary(to: lib)
     }
 
     /// Pick a `.zip` exported from Manather and rebuild it as a new library, then
@@ -643,16 +663,6 @@ struct GalleryGridView: View {
             alert.alertStyle = .warning
             alert.runModal()
         }
-    }
-
-    /// Export the active library (its assets + collections) to a shareable ZIP.
-    private func exportCurrentLibrary() {
-        let exportable = assets.filter { !$0.isDeleted && !$0.isTrash }
-        LibraryArchive.export(
-            libraryName: currentLibraryName,
-            assets: exportable,
-            collections: activeCollections.map(\.name)
-        )
     }
 
     private func expandSearch() {
@@ -763,11 +773,9 @@ struct GalleryGridView: View {
                 .onTapGesture { closeSettings() }
 
             SettingsView(
-                libraryName: currentLibraryName,
-                assetCount: assets.filter { !$0.isDeleted && !$0.isTrash }.count,
-                onExportLibrary: { exportCurrentLibrary() },
                 onLoadDemo: { loadDemoAssets() },
                 onClearCache: { ImageCache.shared.clearAll() },
+                onImportClaude: { ClaudeImporter.importAll(into: modelContext).summary },
                 onDismiss: { closeSettings() }
             )
             .transition(.opacity.combined(with: .scale(scale: 0.96)))
@@ -991,13 +999,12 @@ struct GalleryGridView: View {
     }
 
     private var collectionsGrid: some View {
-        // Group live assets by their collection. The "__unassigned__" sentinel
-        // keeps loose (uncollected) assets out of the named buckets.
-        let grouped = Dictionary(grouping: assets.filter { !$0.isDeleted && !$0.isTrash }) {
-            $0.collectionName ?? "__unassigned__"
-        }
+        // An asset can belong to several collections, so each named bucket is built
+        // from membership rather than a single grouping key. Loose (uncollected)
+        // saves go into "Unassigned".
+        let live = assets.filter { !$0.isDeleted && !$0.isTrash }
         let names = collectionNames // real collections (incl. empty) + legacy names
-        let unassigned = grouped["__unassigned__"] ?? []
+        let unassigned = live.filter { $0.isUnassigned }
         let columns = [GridItem(.adaptive(minimum: 184, maximum: 240), spacing: 22)]
 
         return ScrollView {
@@ -1013,7 +1020,7 @@ struct GalleryGridView: View {
 
                 // Every real collection, including empty ones.
                 ForEach(names, id: \.self) { name in
-                    let items = grouped[name] ?? []
+                    let items = live.filter { $0.inCollection(name) }
                     Button {
                         withAnimation(ManatherTheme.uiMotion) { openCollection = name }
                     } label: {
@@ -1408,10 +1415,20 @@ struct GalleryGridView: View {
     /// collection of the same name, then clear the project field. Idempotent.
     private func mergeProjectsIntoCollections() {
         for asset in assets where asset.spaceName != nil {
-            if (asset.collectionName ?? "").isEmpty {
-                asset.collectionName = asset.spaceName
+            if let space = asset.spaceName, !space.isEmpty {
+                asset.addToCollection(space)
             }
             asset.spaceName = nil
+        }
+    }
+
+    /// One-time backfill: assets persisted before many-to-many only carry the
+    /// single `collectionName`. Lift it into `collectionNames`. Idempotent.
+    private func migrateToMultiCollections() {
+        for asset in assets where asset.collectionNames.isEmpty {
+            if let name = asset.collectionName, !name.isEmpty {
+                asset.collectionNames = [name]
+            }
         }
     }
 
@@ -1420,7 +1437,7 @@ struct GalleryGridView: View {
     /// Idempotent — safe to run on every launch.
     private func seedCollectionsFromAssets() {
         let existing = Set(activeCollections.map(\.name))
-        let fromAssets = Set(assets.filter { !$0.isDeleted }.compactMap { $0.collectionName })
+        let fromAssets = Set(assets.filter { !$0.isDeleted }.flatMap { $0.collectionNames })
         for name in fromAssets where !existing.contains(name) {
             modelContext.insert(AssetCollection(name: name))
         }
@@ -1442,8 +1459,8 @@ struct GalleryGridView: View {
     /// Delete a collection. Assets in it aren't deleted — they just fall back to
     /// "Unassigned" (so nothing is lost).
     private func deleteCollection(_ name: String) {
-        for asset in assets where asset.collectionName == name {
-            asset.collectionName = nil
+        for asset in assets where asset.inCollection(name) {
+            asset.removeFromCollection(name)
         }
         for collection in activeCollections where collection.name == name {
             modelContext.delete(collection)
@@ -1645,12 +1662,13 @@ struct GalleryGridView: View {
     // MARK: - Collection Stack Cards (library header row)
 
     private var collectionStackRow: some View {
-        let grouped = Dictionary(grouping: assets.filter { !$0.isDeleted && !$0.isTrash && $0.collectionName != nil }) { $0.collectionName! }
+        let live = assets.filter { !$0.isDeleted && !$0.isTrash && !$0.isUnassigned }
+        let names = Set(live.flatMap { $0.collectionNames }).sorted()
 
         return ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 14) {
-                ForEach(grouped.keys.sorted(), id: \.self) { name in
-                    let items = grouped[name] ?? []
+                ForEach(names, id: \.self) { name in
+                    let items = live.filter { $0.inCollection(name) }
                     Button {
                         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                             activeCollectionFilter = name
@@ -1952,7 +1970,7 @@ struct GalleryGridView: View {
             codeLanguage: asset.codeLanguage,
             codeContent: asset.codeContent,
             dominantColorsHex: asset.dominantColorsHex,
-            collectionName: asset.collectionName,
+            collectionNames: asset.collectionNames,
             spaceName: asset.spaceName,
             tags: asset.tags
         )

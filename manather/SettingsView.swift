@@ -3,20 +3,23 @@
 //  manather
 //
 //  The centered modal settings window (opened by the gear icon). A left sidebar
-//  of tabs — General, AI Providers, CLI Agents, About — with content on the
-//  right. The dimmed backdrop and click-outside-to-close are provided by the
-//  caller (GalleryGridView); this view is the card itself. Esc also closes it.
+//  of tabs — General, Libraries, AI Providers, CLI Agents, About — with content
+//  on the right. The dimmed backdrop and click-outside-to-close are provided by
+//  the caller (GalleryGridView); this view is the card itself. Esc also closes it.
 //
 
 import SwiftUI
 import AppKit
+import SwiftData
+import UniformTypeIdentifiers
 
 enum SettingsTab: String, CaseIterable, Identifiable {
-    case general, providers, cli, about
+    case general, libraries, providers, cli, about
     var id: String { rawValue }
     var title: String {
         switch self {
         case .general:   return "General"
+        case .libraries: return "Libraries"
         case .providers: return "AI Providers"
         case .cli:       return "CLI Agents"
         case .about:     return "About"
@@ -25,6 +28,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .general:   return "gearshape"
+        case .libraries: return "books.vertical"
         case .providers: return "key.horizontal"
         case .cli:       return "terminal"
         case .about:     return "info.circle"
@@ -33,11 +37,9 @@ enum SettingsTab: String, CaseIterable, Identifiable {
 }
 
 struct SettingsView: View {
-    let libraryName: String
-    let assetCount: Int
-    let onExportLibrary: () -> Void
     let onLoadDemo: () -> Void
     let onClearCache: () -> Void
+    let onImportClaude: () -> String
     let onDismiss: () -> Void
 
     @AppStorage("isDarkMode") private var isDarkMode = false
@@ -160,9 +162,11 @@ struct SettingsView: View {
                     switch tab {
                     case .general:
                         GeneralSettingsView(
-                            libraryName: libraryName, assetCount: assetCount,
-                            onExportLibrary: onExportLibrary, onLoadDemo: onLoadDemo, onClearCache: onClearCache
+                            onLoadDemo: onLoadDemo,
+                            onClearCache: onClearCache, onImportClaude: onImportClaude
                         )
+                    case .libraries:
+                        LibrariesSettingsView()
                     case .providers:
                         AIProvidersSettingsView(store: store)
                     case .cli:
@@ -180,52 +184,255 @@ struct SettingsView: View {
 // MARK: - General
 
 struct GeneralSettingsView: View {
-    let libraryName: String
-    let assetCount: Int
-    let onExportLibrary: () -> Void
     let onLoadDemo: () -> Void
     let onClearCache: () -> Void
+    let onImportClaude: () -> String
 
-    @AppStorage("isDarkMode") private var isDarkMode = false
+    @State private var importMessage: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // Current library card.
-            HStack(spacing: 10) {
-                Image(systemName: "books.vertical")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(ManatherTheme.accent)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(libraryName)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(ManatherTheme.ink)
-                    Text("\(assetCount) \(assetCount == 1 ? "item" : "items")")
-                        .font(.system(size: 11))
-                        .foregroundStyle(ManatherTheme.mutedInk)
-                }
-                Spacer()
+            // Content — fill the current library with material.
+            SettingsStyle.sectionHeader("Content")
+            SettingsStyle.actionRow(icon: "square.and.arrow.down", title: "Import from ~/.claude",
+                                    subtitle: "Add your existing skills & MCP servers to the library") {
+                withAnimation(ManatherTheme.uiMotion) { importMessage = onImportClaude() }
             }
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(SettingsStyle.card(isDarkMode))
-
-            SettingsStyle.sectionHeader("Appearance")
-            Toggle(isOn: $isDarkMode) {
-                Text("Dark mode").font(.system(size: 13)).foregroundStyle(ManatherTheme.ink)
+            if let importMessage {
+                Text(importMessage)
+                    .font(.system(size: 11))
+                    .foregroundStyle(ManatherTheme.mutedInk)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .transition(.opacity)
             }
-            .toggleStyle(.switch)
-            .tint(ManatherTheme.accent)
-
-            SettingsStyle.sectionHeader("Library")
-            SettingsStyle.actionRow(icon: "square.and.arrow.up", title: "Export Library (.zip)",
-                                    subtitle: "Save everything as a shareable archive", action: onExportLibrary)
             SettingsStyle.actionRow(icon: "sparkles", title: "Load Demo Assets",
                                     subtitle: "Fill the library with sample content", action: onLoadDemo)
+
+            // Storage — disk maintenance.
+            SettingsStyle.sectionHeader("Storage")
             SettingsStyle.actionRow(icon: "trash", title: "Clear Image Cache",
                                     subtitle: "Free disk space; thumbnails regenerate", destructive: true, action: onClearCache)
 
+            // Shortcuts.
             SettingsStyle.sectionHeader("Global Screenshot Hotkey")
             HotKeyRecorderView()
+        }
+    }
+}
+
+// MARK: - Libraries
+
+/// Full library management: list every library, switch, export any to a ZIP,
+/// rename, delete, create new, import. Self-contained — reads/writes SwiftData
+/// directly and changes the active library via the shared AppStorage key (the
+/// gallery picks that up and re-filters / resets its view state).
+struct LibrariesSettingsView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \Library.dateCreated) private var libraries: [Library]
+    @AppStorage("activeLibraryID") private var activeLibraryIDString = ""
+    @AppStorage("isDarkMode") private var isDarkMode = false
+
+    @State private var renamingID: UUID?
+    @State private var renameText = ""
+    @FocusState private var renameFocused: Bool
+    @State private var pendingDelete: Library?
+
+    private var activeID: UUID? { UUID(uuidString: activeLibraryIDString) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Keep separate libraries — e.g. one per client or topic. Switch between them, export any as a shareable .zip, or import one someone sent you.")
+                .font(.system(size: 12))
+                .foregroundStyle(ManatherTheme.mutedInk)
+                .fixedSize(horizontal: false, vertical: true)
+
+            let counts = itemCounts()
+            ForEach(libraries) { library in
+                libraryRow(library, count: counts[library.id] ?? 0)
+            }
+
+            SettingsStyle.sectionHeader("Add")
+            SettingsStyle.actionRow(icon: "plus", title: "New Library",
+                                    subtitle: "Start an empty library and switch to it") { createLibrary() }
+            SettingsStyle.actionRow(icon: "square.and.arrow.down", title: "Import Library (.zip)…",
+                                    subtitle: "Rebuild a shared library from a ZIP") { importLibrary() }
+        }
+        .confirmationDialog(
+            "Delete “\(pendingDelete?.name ?? "")”? Its assets and collections are permanently removed.",
+            isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button("Delete Library", role: .destructive) {
+                if let lib = pendingDelete { deleteLibrary(lib) }
+                pendingDelete = nil
+            }
+            Button("Cancel", role: .cancel) { pendingDelete = nil }
+        }
+    }
+
+    private func libraryRow(_ library: Library, count: Int) -> some View {
+        let isActive = library.id == activeID
+        return HStack(spacing: 10) {
+            Image(systemName: "books.vertical.fill")
+                .font(.system(size: 14))
+                .foregroundStyle(isActive ? ManatherTheme.accent : ManatherTheme.mutedInk)
+                .frame(width: 20)
+
+            if renamingID == library.id {
+                TextField("Library name", text: $renameText)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(ManatherTheme.ink)
+                    .focused($renameFocused)
+                    .onSubmit { commitRename(library) }
+            } else {
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(spacing: 6) {
+                        Text(library.name)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(ManatherTheme.ink)
+                        if isActive {
+                            Text("ACTIVE")
+                                .font(.system(size: 8, weight: .bold))
+                                .tracking(0.5)
+                                .foregroundStyle(ManatherTheme.accent)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1)
+                                .background(Capsule().fill(ManatherTheme.accent.opacity(0.15)))
+                        }
+                    }
+                    Text("\(count) \(count == 1 ? "item" : "items")")
+                        .font(.system(size: 11))
+                        .foregroundStyle(ManatherTheme.mutedInk)
+                }
+            }
+
+            Spacer(minLength: 8)
+
+            if renamingID == library.id {
+                rowButton("checkmark", "Save") { commitRename(library) }
+            } else {
+                if !isActive { rowButton("arrow.right.circle", "Switch to this library") { switchTo(library) } }
+                rowButton("square.and.arrow.up", "Export as .zip") { exportLibrary(library) }
+                rowButton("pencil", "Rename") { startRename(library) }
+                rowButton("trash", "Delete", destructive: true) { pendingDelete = library }
+                    .disabled(libraries.count <= 1)
+                    .opacity(libraries.count <= 1 ? 0.35 : 1)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(SettingsStyle.card(isDarkMode))
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if !isActive && renamingID != library.id { switchTo(library) }
+        }
+    }
+
+    private func rowButton(_ icon: String, _ tooltip: String, destructive: Bool = false,
+                           action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(destructive ? Color(red: 0.85, green: 0.30, blue: 0.28) : ManatherTheme.mutedInk)
+                .frame(width: 26, height: 26)
+                .background(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(isDarkMode ? Color.white.opacity(0.06) : Color.black.opacity(0.04))
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(tooltip)
+    }
+
+    // MARK: - Actions
+
+    private func itemCounts() -> [UUID: Int] {
+        let all = (try? modelContext.fetch(FetchDescriptor<AssetItem>())) ?? []
+        var counts: [UUID: Int] = [:]
+        for asset in all where !asset.isDeleted && !asset.isTrash {
+            if let id = asset.libraryID { counts[id, default: 0] += 1 }
+        }
+        return counts
+    }
+
+    private func createLibrary() {
+        let lib = Library(name: LibraryManager.uniqueName("New Library", context: modelContext))
+        modelContext.insert(lib)
+        activeLibraryIDString = lib.id.uuidString
+    }
+
+    private func switchTo(_ library: Library) {
+        guard library.id != activeID else { return }
+        activeLibraryIDString = library.id.uuidString
+    }
+
+    private func startRename(_ library: Library) {
+        renameText = library.name
+        renamingID = library.id
+        DispatchQueue.main.async { renameFocused = true }
+    }
+
+    private func commitRename(_ library: Library) {
+        let trimmed = renameText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            let clash = libraries.contains {
+                $0.id != library.id && $0.name.caseInsensitiveCompare(trimmed) == .orderedSame
+            }
+            library.name = clash ? LibraryManager.uniqueName(trimmed, context: modelContext) : trimmed
+        }
+        renamingID = nil
+        renameText = ""
+    }
+
+    private func deleteLibrary(_ library: Library) {
+        guard libraries.count > 1 else { return }   // never delete the last library
+        let all = (try? modelContext.fetch(FetchDescriptor<AssetItem>())) ?? []
+        for asset in all where asset.libraryID == library.id {
+            if !asset.relativeFilePath.isEmpty {
+                FileManagerHelper.deleteFile(relativePath: asset.relativeFilePath)
+                ImageCache.shared.removeCachedImages(for: asset.relativeFilePath)
+            }
+            modelContext.delete(asset)
+        }
+        let collections = (try? modelContext.fetch(FetchDescriptor<AssetCollection>())) ?? []
+        for collection in collections where collection.libraryID == library.id {
+            modelContext.delete(collection)
+        }
+        let wasActive = library.id == activeID
+        let fallback = libraries.first { $0.id != library.id }
+        modelContext.delete(library)
+        if wasActive, let fallback { activeLibraryIDString = fallback.id.uuidString }
+    }
+
+    private func exportLibrary(_ library: Library) {
+        let all = (try? modelContext.fetch(FetchDescriptor<AssetItem>())) ?? []
+        let libAssets = all.filter { $0.libraryID == library.id && !$0.isDeleted && !$0.isTrash }
+        let collections = ((try? modelContext.fetch(FetchDescriptor<AssetCollection>())) ?? [])
+            .filter { $0.libraryID == library.id }
+            .map(\.name)
+        LibraryArchive.export(libraryName: library.name, assets: libAssets, collections: collections)
+    }
+
+    private func importLibrary() {
+        let panel = NSOpenPanel()
+        panel.title = "Import Library"
+        panel.allowedContentTypes = [.zip]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.prompt = "Import"
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            let library = try LibraryArchive.importArchive(from: url, context: modelContext)
+            activeLibraryIDString = library.id.uuidString
+        } catch {
+            let alert = NSAlert()
+            alert.messageText = "Import failed"
+            alert.informativeText = error.localizedDescription
+            alert.alertStyle = .warning
+            alert.runModal()
         }
     }
 }

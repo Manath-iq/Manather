@@ -9,6 +9,39 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 _Nothing yet — your next change goes here._
 
+## [0.1.10] — 2026-06-19
+
+### Added
+- **Multiple libraries you fully control (Settings → Libraries).** Create new
+  empty libraries, switch between them, **rename**, **delete**, and **export any
+  library** (not just the active one) as a shareable `.zip`. Import a shared
+  library too. A quick **New Library** action was also added to the "Library ▾" menu.
+- **Vision auto-tag.** The "Auto-tag" button now actually looks at the image with
+  your default AI provider's vision model and suggests tags from the subject,
+  style, colours and mood. Falls back to the keyword method when no provider is
+  connected.
+- **Import from `~/.claude`.** One click in Settings → General pulls your existing
+  Claude Code **skills** and **MCP servers** into the library, skipping anything
+  already there.
+- **Export a Context Pack straight into a git repo.** A toggle in the export sheet
+  runs `git init` and makes the first commit in the exported folder.
+- **An asset can belong to several collections at once** (many-to-many). The
+  inspector picks multiple collections as chips; the right-click menu toggles them
+  with checkmarks. Existing data migrates automatically.
+
+### Changed
+- **Reorganized Settings.** The General tab is split into clear sections
+  (Content / Storage / Hotkey), library management moved to a dedicated
+  **Libraries** tab, and the duplicate dark-mode toggle was removed (use the
+  sun/moon button next to the gear).
+
+### Fixed
+- **Pasted & screenshot images keep their full quality.** Screenshots are now
+  saved byte-for-byte, and when you paste an image copied from a browser the app
+  fetches the **full-resolution original** from its source URL when that's larger
+  than the downscaled clipboard copy — so saved images are no longer shrunk to the
+  on-screen size.
+
 ## [0.1.9] — 2026-06-18
 
 ### Changed

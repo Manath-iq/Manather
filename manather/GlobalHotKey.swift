@@ -129,11 +129,13 @@ enum ScreenshotCapture {
             DispatchQueue.main.async {
                 defer { try? FileManager.default.removeItem(at: tmpURL) }
                 guard FileManager.default.fileExists(atPath: tmpURL.path),
-                      let image = NSImage(contentsOf: tmpURL) else {
+                      let data = try? Data(contentsOf: tmpURL) else {
                     return // user cancelled the selection
                 }
+                // Save the PNG screencapture produced byte-for-byte — no re-encode,
+                // so full resolution and colour profile are preserved.
                 let stamp = Self.timestamp()
-                AssetIngest.ingestImage(image, title: "Screenshot \(stamp)", into: context)
+                AssetIngest.ingestImageData(data, ext: "png", title: "Screenshot \(stamp)", into: context)
             }
         }
 

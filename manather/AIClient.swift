@@ -179,6 +179,96 @@ enum AIClient {
         throw AIError.badResponse
     }
 
+    // MARK: - Vision auto-tag
+
+    /// Looks at the image with the default provider's (vision-capable) chat model
+    /// and returns 3–6 short topical tags. Throws if no provider is connected or
+    /// the asset has no readable image file.
+    static func suggestTags(for asset: AssetItem) async throws -> [String] {
+        guard let cfg = await resolveDefault() else { throw AIError.notConnected }
+        guard !asset.relativeFilePath.isEmpty else { throw AIError.badResponse }
+        let src = FileManagerHelper.absolutePath(for: asset.relativeFilePath)
+        guard let imgData = try? Data(contentsOf: src) else { throw AIError.badResponse }
+
+        let instruction = "You are tagging a visual reference image for a design library. " +
+            "Look at the image and return 3 to 6 short lowercase tags (single words or two-word " +
+            "phrases) describing its subject, style, colours and mood. " +
+            "Return ONLY the tags as a comma-separated list — no numbering, no explanation."
+        let text = try await visionChat(cfg: cfg, instruction: instruction,
+                                        imageData: imgData, mime: mimeType(for: asset.relativeFilePath))
+        let tags = parseTags(text)
+        guard !tags.isEmpty else { throw AIError.badResponse }
+        return tags
+    }
+
+    /// One-shot "describe this image" call. Each provider has its own way of
+    /// attaching an image to a chat request; the text reply is parsed the same way
+    /// as `chat(…)`. Requires the chosen model to support vision.
+    private static func visionChat(cfg: ResolvedProvider, instruction: String,
+                                   imageData: Data, mime: String) async throws -> String {
+        let b64 = imageData.base64EncodedString()
+        let url: URL
+        var headers: [String: String] = ["Content-Type": "application/json"]
+        var body: [String: Any]
+
+        switch cfg.provider.kind {
+        case .openAICompatible:
+            url = try makeURL("\(cfg.baseURL)/chat/completions")
+            headers["Authorization"] = "Bearer \(cfg.key)"
+            body = ["model": cfg.model, "messages": [[
+                "role": "user",
+                "content": [
+                    ["type": "text", "text": instruction],
+                    ["type": "image_url", "image_url": ["url": "data:\(mime);base64,\(b64)"]]
+                ]
+            ]]]
+        case .anthropic:
+            url = try makeURL("\(cfg.baseURL)/v1/messages")
+            headers["x-api-key"] = cfg.key
+            headers["anthropic-version"] = "2023-06-01"
+            body = ["model": cfg.model, "max_tokens": 300, "messages": [[
+                "role": "user",
+                "content": [
+                    ["type": "image", "source": ["type": "base64", "media_type": mime, "data": b64]],
+                    ["type": "text", "text": instruction]
+                ]
+            ]]]
+        case .gemini:
+            url = try makeURL("\(cfg.baseURL)/models/\(cfg.model):generateContent?key=\(cfg.key)")
+            body = ["contents": [[
+                "parts": [
+                    ["text": instruction],
+                    ["inline_data": ["mime_type": mime, "data": b64]]
+                ]
+            ]]]
+        case .ollama:
+            url = try makeURL("\(cfg.baseURL)/api/chat")
+            body = ["model": cfg.model, "stream": false, "messages": [[
+                "role": "user", "content": instruction, "images": [b64]
+            ]]]
+        }
+
+        let data = try await post(url, headers: headers, body: body, timeout: 60)
+        guard let text = parseChatText(data, kind: cfg.provider.kind), !text.isEmpty else {
+            throw AIError.badResponse
+        }
+        return text
+    }
+
+    /// Turn a model's free-form reply into clean tags: split on commas/newlines,
+    /// strip bullets/numbering/quotes, keep short (≤3-word) lowercase entries.
+    private static func parseTags(_ text: String) -> [String] {
+        var tags: [String] = []
+        for piece in text.components(separatedBy: CharacterSet(charactersIn: ",\n")) {
+            var t = piece.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+            t = t.trimmingCharacters(in: CharacterSet(charactersIn: "•-*0123456789.\"'[]()# "))
+            guard !t.isEmpty, t.count <= 30, t.split(separator: " ").count <= 3 else { continue }
+            if !tags.contains(t) { tags.append(t) }
+            if tags.count >= 6 { break }
+        }
+        return tags
+    }
+
     // MARK: - Networking
 
     private static func post(_ url: URL, headers: [String: String], body: [String: Any], timeout: TimeInterval) async throws -> Data {

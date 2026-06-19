@@ -172,6 +172,7 @@ struct LibraryMenuView: View {
     let libraries: [Library]
     let activeID: UUID?
     let onSelect: (Library) -> Void
+    let onNewLibrary: () -> Void
     let onImport: () -> Void
     let onDismiss: () -> Void
 
@@ -191,6 +192,12 @@ struct LibraryMenuView: View {
 
             MenuDivider(palette: palette)
 
+            ContextMenuRow(
+                item: AssetMenuItem(title: "New Library", systemImage: "plus") {
+                    onDismiss(); onNewLibrary()
+                },
+                palette: palette
+            )
             ContextMenuRow(
                 item: AssetMenuItem(title: "Import Library (ZIP)…", systemImage: "square.and.arrow.down") {
                     onDismiss(); onImport()
@@ -287,7 +294,10 @@ struct AssetContextMenuView: View {
         VStack(spacing: 2) {
             switch page {
             case .main:        mainPage
-            case .collections: assignPage(title: "Add to Collection", options: collections) { asset.collectionName = $0 }
+            case .collections:
+                assignPage(title: "Add to Collection", options: collections, selected: asset.collectionNames) { name in
+                    if let name { asset.toggleCollection(name) } else { asset.setCollections([]) }
+                }
             }
         }
         .padding(6)
@@ -349,7 +359,8 @@ struct AssetContextMenuView: View {
     }
 
     @ViewBuilder
-    private func assignPage(title: String, options: [String], assign: @escaping (String?) -> Void) -> some View {
+    private func assignPage(title: String, options: [String], selected: [String] = [],
+                            assign: @escaping (String?) -> Void) -> some View {
         // Header with back button
         Button {
             page = .main
@@ -391,15 +402,18 @@ struct AssetContextMenuView: View {
                 .padding(.vertical, 8)
                 .frame(maxWidth: .infinity, alignment: .leading)
         } else {
+            // Tap toggles membership; the menu stays open so several collections
+            // can be added in one go (a checkmark shows the current ones).
             ForEach(options, id: \.self) { name in
-                row(.init(title: name, systemImage: "circle.fill") {
-                    assign(name); onDismiss()
+                let isOn = selected.contains(name)
+                row(.init(title: name, systemImage: isOn ? "checkmark.circle.fill" : "circle") {
+                    assign(name)
                 })
             }
         }
 
         divider
-        row(.init(title: title.contains("Collection") ? "Remove from Collection" : "Remove from Project",
+        row(.init(title: title.contains("Collection") ? "Remove from All" : "Remove from Project",
                   systemImage: "minus.circle") {
             assign(nil); onDismiss()
         })

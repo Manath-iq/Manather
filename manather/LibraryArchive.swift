@@ -82,6 +82,7 @@ enum LibraryArchive {
             if !asset.notes.isEmpty { entry["notes"] = asset.notes }
             if !asset.tags.isEmpty { entry["tags"] = asset.tags }
             if let name = asset.collectionName { entry["collectionName"] = name }
+            if !asset.collectionNames.isEmpty { entry["collectionNames"] = asset.collectionNames }
             if let lang = asset.codeLanguage { entry["codeLanguage"] = lang }
             if let content = asset.codeContent { entry["codeContent"] = content }
             if asset.imageWidth > 0 { entry["imageWidth"] = asset.imageWidth }
@@ -196,6 +197,7 @@ enum LibraryArchive {
                     codeContent: entry["codeContent"] as? String,
                     dominantColorsHex: entry["dominantColorsHex"] as? [String],
                     collectionName: entry["collectionName"] as? String,
+                    collectionNames: entry["collectionNames"] as? [String] ?? [],
                     spaceName: nil,
                     libraryID: library.id,
                     tags: entry["tags"] as? [String] ?? []

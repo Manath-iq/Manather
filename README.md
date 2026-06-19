@@ -66,15 +66,15 @@ Drag in images, links, snippets, skills, MCP configs. Each asset can carry an **
 <td width="33%" valign="top">
 
 ### 2 · Organize
-Group assets into **Collections**. Find anything fast with **color filters**,
-**search**, and a Pinterest-style grid.
+Group assets into **Collections** (one asset can live in several at once). Find anything fast with
+**color filters**, **search**, and a Pinterest-style grid.
 
 </td>
 <td width="33%" valign="top">
 
 ### 3 · Export
 Right-click a collection → **Export Context Pack**. Drop the folder in a repo and point Claude Code
-(or any agent) at it.
+(or any agent) at it — optionally **initialized as a git repo** with a first commit.
 
 </td>
 </tr>
@@ -107,7 +107,18 @@ my-project-context-pack/
 | ✍️ **Prompts** | stored right on any asset, copy with one click |
 
 **🎨 Find things fast** — masonry grid with a 2–6 column slider · color filter (7 hues, auto-extracted
-on import) · search across titles, prompts, notes, tags & code · sort by recency or name.
+on import) · search across titles, prompts, notes, tags & code · sort by recency or name · an asset
+can belong to **several collections** at once.
+
+**✨ AI features (your own key)** — connect any provider (OpenAI, Anthropic, Gemini, xAI, OpenRouter,
+DeepSeek, Mistral, Ollama) in Settings · **Generate variation** of an image · **vision auto-tag** that
+looks at the picture itself · an AI-sharpened **export brief**. Keys live in the macOS Keychain.
+
+**📚 Multiple libraries** — keep separate libraries (e.g. one per client or topic), switch in a click,
+and **create / rename / export / import** any of them as a shareable `.zip`.
+
+**🔌 One-click setup import** — pull your existing **skills & MCP servers** from `~/.claude/` straight
+into the library.
 
 **🧲 Boards — a moodboard canvas** — infinite dot-grid with smooth pan & zoom · drop in library
 images plus notes, text, shapes, frames & arrows · **move, resize, and rotate** any object · arrows
@@ -191,15 +202,15 @@ The database stores only **relative paths**, so moving originals never breaks a 
 - [x] Multi-type library: images, video, GIFs, links, snippets, skills, MCP servers
 - [x] Color filter, search, sort
 - [x] Collections + **Context Pack** export
+- [x] Many-to-many: one asset across multiple collections
 - [x] **Boards** moodboard canvas — move / resize / rotate, arrows, PNG export
+- [x] AI provider: prompt-based image variations, vision auto-tagging, AI-written brief
+- [x] Auto-import skills / MCP configs from `~/.claude/`
+- [x] Export straight into a git repo (init + first commit)
 - [x] Continuous integration + one-click `.dmg` releases
 
 **Next**
-- [ ] Many-to-many: one asset across multiple collections
-- [ ] AI provider: prompt-based image variations, vision auto-tagging, AI-written `CONTEXT.md`
-- [ ] Auto-import skills / MCP configs from `~/.claude/`
 - [ ] Project templates (preloaded packs)
-- [ ] Export straight into a git repo
 
 ---
 

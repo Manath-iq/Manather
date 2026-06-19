@@ -18,9 +18,9 @@ struct ExportGoalSheet: View {
     let collectionName: String
     /// The collection's assets — given to the AI as context when improving the goal.
     let assets: [AssetItem]
-    /// Called with the (possibly empty) goal text once the user confirms. The
-    /// caller opens the save panel and writes the pack.
-    let onExport: (String) -> Void
+    /// Called with the (possibly empty) goal text and whether to initialise a git
+    /// repo, once the user confirms. The caller opens the save panel and writes the pack.
+    let onExport: (String, Bool) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @AppStorage("isDarkMode") private var isDarkMode = false
@@ -30,6 +30,7 @@ struct ExportGoalSheet: View {
     @State private var isImproving = false
     @State private var previousGoal: String? = nil    // for one-tap Undo
     @State private var improveError: String? = nil
+    @State private var gitInit = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -119,6 +120,19 @@ struct ExportGoalSheet: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            Toggle(isOn: $gitInit) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Initialize as a git repository")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(ManatherTheme.ink)
+                    Text("Runs git init and makes a first commit in the exported folder")
+                        .font(.system(size: 10))
+                        .foregroundStyle(ManatherTheme.mutedInk)
+                }
+            }
+            .toggleStyle(.switch)
+            .tint(ManatherTheme.accent)
+
             HStack(spacing: 12) {
                 Spacer()
                 Button("Cancel") { dismiss() }
@@ -135,7 +149,7 @@ struct ExportGoalSheet: View {
                 Button("Export") {
                     let text = goal.trimmingCharacters(in: .whitespacesAndNewlines)
                     dismiss()
-                    onExport(text)
+                    onExport(text, gitInit)
                 }
                 .buttonStyle(.microAnimated)
                 .font(.system(size: 12, weight: .semibold))

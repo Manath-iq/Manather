@@ -93,7 +93,8 @@ enum ContextPackExporter {
     /// `goal` is the free-text project brief the user typed at export time
     /// (what they want built); empty means "let the agent infer from materials".
     /// Call from the main actor.
-    static func export(projectName: String, assets: [AssetItem], target: ExportTarget = .generic, goal: String = "") {
+    static func export(projectName: String, assets: [AssetItem], target: ExportTarget = .generic,
+                       goal: String = "", gitInit: Bool = false) {
         let panel = NSSavePanel()
         panel.title = "Export — \(target.menuLabel)"
         panel.nameFieldStringValue = sanitized(projectName) + target.folderSuffix
@@ -104,6 +105,19 @@ enum ContextPackExporter {
             guard response == .OK, let url = panel.url else { return }
             do {
                 try writePack(to: url, projectName: projectName, assets: assets, target: target, goal: goal)
+                // Optionally turn the pack into a git repo with a first commit. A
+                // git failure shouldn't lose the export — warn but keep the folder.
+                if gitInit {
+                    do {
+                        try GitExporter.initRepo(at: url)
+                    } catch {
+                        let alert = NSAlert()
+                        alert.messageText = "Exported, but git init failed"
+                        alert.informativeText = error.localizedDescription
+                        alert.alertStyle = .warning
+                        alert.runModal()
+                    }
+                }
                 NSWorkspace.shared.activateFileViewerSelecting([url])
             } catch {
                 let alert = NSAlert()

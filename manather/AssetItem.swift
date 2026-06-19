@@ -49,8 +49,13 @@ final class AssetItem {
     var codeContent: String? = nil
     var dominantColorsHex: [String]? = nil
     
-    // Grouping support
+    // Grouping support.
+    // `collectionNames` is the source of truth for membership (an asset can be in
+    // several collections at once). `collectionName` is kept as the "primary"
+    // collection (= the first one) so older code and library archives that expect
+    // a single value keep working.
     var collectionName: String? = nil
+    var collectionNames: [String] = []
     var spaceName: String? = nil
 
     // Which library this asset belongs to. Optional so older stores migrate
@@ -67,6 +72,44 @@ final class AssetItem {
     var assetType: AssetType {
         get { AssetType(rawValue: typeRaw) ?? .image }
         set { typeRaw = newValue.rawValue }
+    }
+
+    // MARK: - Collection membership (many-to-many)
+
+    /// Not filed under any collection.
+    var isUnassigned: Bool { collectionNames.isEmpty }
+
+    func inCollection(_ name: String) -> Bool { collectionNames.contains(name) }
+
+    func addToCollection(_ name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !collectionNames.contains(trimmed) else { return }
+        collectionNames.append(trimmed)
+        collectionName = collectionNames.first
+    }
+
+    func removeFromCollection(_ name: String) {
+        collectionNames.removeAll { $0 == name }
+        collectionName = collectionNames.first
+    }
+
+    /// Toggle membership; returns the new state (true = now in the collection).
+    @discardableResult
+    func toggleCollection(_ name: String) -> Bool {
+        if inCollection(name) { removeFromCollection(name); return false }
+        addToCollection(name); return true
+    }
+
+    /// Replace the full set of collections (de-duplicated, blanks dropped).
+    func setCollections(_ names: [String]) {
+        var seen = Set<String>()
+        var result: [String] = []
+        for name in names.map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) })
+        where !name.isEmpty && seen.insert(name).inserted {
+            result.append(name)
+        }
+        collectionNames = result
+        collectionName = result.first
     }
 
     var aspectRatio: CGFloat {
@@ -99,6 +142,7 @@ final class AssetItem {
         codeContent: String? = nil,
         dominantColorsHex: [String]? = nil,
         collectionName: String? = nil,
+        collectionNames: [String] = [],
         spaceName: String? = nil,
         libraryID: UUID? = nil,
         tags: [String] = []
@@ -117,7 +161,13 @@ final class AssetItem {
         self.codeLanguage = codeLanguage
         self.codeContent = codeContent
         self.dominantColorsHex = dominantColorsHex
-        self.collectionName = collectionName
+        // Reconcile the two membership fields: prefer an explicit list, else derive
+        // it from the single legacy name. Keep `collectionName` pointed at the first.
+        let resolved = collectionNames.isEmpty
+            ? (collectionName.flatMap { $0.isEmpty ? nil : [$0] } ?? [])
+            : collectionNames
+        self.collectionNames = resolved
+        self.collectionName = resolved.first
         self.spaceName = spaceName
         // Fall back to whatever library is active so anything created through the
         // normal UI lands in the right place; the importer passes an explicit id.
