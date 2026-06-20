@@ -9,6 +9,19 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 _Nothing yet — your next change goes here._
 
+## [0.1.11] — 2026-06-20
+
+### Added
+- **MCP server — let an AI agent connect to your library.** Manather can now act
+  as a local MCP server (Settings → **MCP Server**). Flip it on, copy the Claude
+  Code command or JSON config, and your agent can **search** the library and pull
+  out images/snippets/skills/MCP configs (media is handed over as a file path it
+  reads directly), **create** libraries and collections, **add** assets, and
+  **export a collection as a context pack** — all live, so the grid updates as it
+  works. The server listens on **127.0.0.1 only** and requires a per-install token;
+  it's off by default and runs only while Manather is open. Built on Apple's
+  Network.framework, no third-party dependencies.
+
 ## [0.1.10] — 2026-06-19
 
 ### Added

@@ -131,7 +131,9 @@ enum ContextPackExporter {
 
     // MARK: - Pack writer (shared by all targets)
 
-    private static func writePack(to root: URL, projectName: String, assets: [AssetItem], target: ExportTarget, goal: String) throws {
+    /// Writes a pack directly to `root` with no save panel. Used by the interactive
+    /// `export(…)` above and by the MCP server (which already knows the destination).
+    static func writePack(to root: URL, projectName: String, assets: [AssetItem], target: ExportTarget, goal: String) throws {
         let fm = FileManager.default
         let layout = Layout.of(target)
         let trimmedGoal = goal.trimmingCharacters(in: .whitespacesAndNewlines)

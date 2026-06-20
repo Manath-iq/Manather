@@ -14,7 +14,7 @@ import SwiftData
 import UniformTypeIdentifiers
 
 enum SettingsTab: String, CaseIterable, Identifiable {
-    case general, libraries, providers, cli, about
+    case general, libraries, providers, cli, mcp, about
     var id: String { rawValue }
     var title: String {
         switch self {
@@ -22,6 +22,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .libraries: return "Libraries"
         case .providers: return "AI Providers"
         case .cli:       return "CLI Agents"
+        case .mcp:       return "MCP Server"
         case .about:     return "About"
         }
     }
@@ -31,6 +32,7 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .libraries: return "books.vertical"
         case .providers: return "key.horizontal"
         case .cli:       return "terminal"
+        case .mcp:       return "network"
         case .about:     return "info.circle"
         }
     }
@@ -171,6 +173,8 @@ struct SettingsView: View {
                         AIProvidersSettingsView(store: store)
                     case .cli:
                         CLIAgentsSettingsView(detector: detector)
+                    case .mcp:
+                        MCPSettingsView()
                     case .about:
                         AboutSettingsView()
                     }
@@ -805,6 +809,180 @@ struct AboutSettingsView: View {
 }
 
 // MARK: - Shared styling
+
+// MARK: - MCP Server
+
+/// Lets an AI agent connect to this library over a local MCP endpoint. Toggles the
+/// loopback server (MCPServerManager.shared) and hands the user a ready-to-paste
+/// connection command / JSON config.
+struct MCPSettingsView: View {
+    @AppStorage("mcpEnabled") private var enabled = false
+    @AppStorage("mcpPort") private var port = 4319
+    @AppStorage("isDarkMode") private var isDarkMode = false
+    // Per-capability permissions (keys match MCPCapability.key). Default on.
+    @AppStorage("mcpCap_browse") private var capBrowse = true
+    @AppStorage("mcpCap_create") private var capCreate = true
+    @AppStorage("mcpCap_add") private var capAdd = true
+    @AppStorage("mcpCap_edit") private var capEdit = true
+    @AppStorage("mcpCap_export") private var capExport = true
+    @State private var copied: String?
+
+    private var manager: MCPServerManager { .shared }
+    private var token: String { manager.token }
+    private var endpoint: String { "http://127.0.0.1:\(port)/mcp" }
+    private var claudeCommand: String {
+        "claude mcp add --transport http manather \(endpoint) --header \"Authorization: Bearer \(token)\""
+    }
+    private var jsonConfig: String {
+        """
+        {
+          "mcpServers": {
+            "manather": {
+              "type": "http",
+              "url": "\(endpoint)",
+              "headers": { "Authorization": "Bearer \(token)" }
+            }
+          }
+        }
+        """
+    }
+
+    private var statusText: String {
+        guard enabled else { return "Off" }
+        return manager.isRunning ? "Running — listening on 127.0.0.1:\(port)" : "Starting…"
+    }
+    private var statusColor: Color {
+        (enabled && manager.isRunning) ? ManatherTheme.accent : ManatherTheme.mutedInk
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Let an AI agent (Claude Code, Cursor…) browse this library and add to it over a local connection. The server only listens on 127.0.0.1 and requires the token below. Keep Manather running while you use it.")
+                .font(.system(size: 12))
+                .foregroundStyle(ManatherTheme.mutedInk)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Toggle(isOn: $enabled) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Enable MCP server")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(ManatherTheme.ink)
+                    Text(statusText)
+                        .font(.system(size: 11))
+                        .foregroundStyle(statusColor)
+                }
+            }
+            .toggleStyle(.switch)
+            .tint(ManatherTheme.accent)
+            .padding(12)
+            .background(SettingsStyle.card(isDarkMode))
+            .onChange(of: enabled) { _, newValue in manager.apply(enabled: newValue) }
+
+            // Everything below only shows while the server is enabled.
+            if enabled {
+                if let err = manager.lastError {
+                    Text(err)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                SettingsStyle.sectionHeader("Connection")
+                HStack(spacing: 10) {
+                    SettingsStyle.fieldLabel("Port")
+                    TextField("4319", value: $port, format: .number.grouping(.never))
+                        .textFieldStyle(.plain)
+                        .frame(width: 70)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(SettingsStyle.field(isDarkMode))
+                        .onChange(of: port) { _, _ in manager.restart() }
+                    Spacer()
+                }
+                copyRow(label: "Endpoint", value: endpoint, id: "endpoint")
+                copyRow(label: "Token", value: token, id: "token")
+
+                SettingsStyle.sectionHeader("Permissions")
+                Text("Choose what a connected agent may do. Changes apply immediately — a disabled action disappears from the agent's tool list.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(ManatherTheme.mutedInk)
+                    .fixedSize(horizontal: false, vertical: true)
+                permissionToggle(.browse, $capBrowse)
+                permissionToggle(.create, $capCreate)
+                permissionToggle(.add, $capAdd)
+                permissionToggle(.edit, $capEdit)
+                permissionToggle(.export, $capExport)
+
+                SettingsStyle.sectionHeader("Connect your agent")
+                actionButton("Copy Claude Code command", icon: "terminal", id: "cmd") { copy(claudeCommand, id: "cmd") }
+                actionButton("Copy JSON config", icon: "curlybraces", id: "json") { copy(jsonConfig, id: "json") }
+
+                Text("Paste the command in a terminal, or add the JSON to your agent's MCP config. Then ask it to search your library, add images/snippets, or export a context pack.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(ManatherTheme.mutedInk)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .animation(ManatherTheme.uiMotion, value: enabled)
+    }
+
+    private func permissionToggle(_ capability: MCPCapability, _ isOn: Binding<Bool>) -> some View {
+        Toggle(isOn: isOn) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(capability.title)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(ManatherTheme.ink)
+                Text(capability.subtitle)
+                    .font(.system(size: 11))
+                    .foregroundStyle(ManatherTheme.mutedInk)
+            }
+        }
+        .toggleStyle(.switch)
+        .tint(ManatherTheme.accent)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(SettingsStyle.card(isDarkMode))
+    }
+
+    private func copyRow(label: String, value: String, id: String) -> some View {
+        HStack(spacing: 10) {
+            SettingsStyle.fieldLabel(label).frame(width: 64, alignment: .leading)
+            Text(value)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(ManatherTheme.ink)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button { copy(value, id: id) } label: {
+                Text(copied == id ? "Copied" : "Copy").font(.system(size: 11, weight: .medium))
+            }
+            .buttonStyle(SettingsButtonStyle(prominent: false, enabled: true))
+        }
+        .padding(10)
+        .background(SettingsStyle.field(isDarkMode))
+    }
+
+    private func actionButton(_ title: String, icon: String, id: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: icon).font(.system(size: 12, weight: .medium))
+                Text(copied == id ? "Copied to clipboard" : title).font(.system(size: 12, weight: .medium))
+                Spacer()
+            }
+        }
+        .buttonStyle(SettingsButtonStyle(prominent: false, enabled: true))
+    }
+
+    private func copy(_ text: String, id: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        withAnimation(ManatherTheme.uiMotion) { copied = id }
+        Task {
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            withAnimation(ManatherTheme.uiMotion) { if copied == id { copied = nil } }
+        }
+    }
+}
 
 enum SettingsStyle {
     static func card(_ dark: Bool) -> some View {

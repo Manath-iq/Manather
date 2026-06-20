@@ -132,6 +132,33 @@ dark themes · search (**⌘F**) and quick tab switching · fluid, consistent mo
 
 ---
 
+## Connect your AI agent (MCP)
+
+Manather doubles as a local **MCP server**, so an AI agent — Claude Code, Cursor, or
+anything that speaks MCP — can reach straight into your library while you work.
+
+Turn it on in **Settings → MCP Server**, copy the one-line command, and your agent can:
+
+- 🔎 **Search & pull** — find images, snippets, skills, MCP configs or links by text, tag
+  or colour, and take them (images come back as a file path it reads directly).
+- 🗂 **Organize** — create libraries and collections, file assets, set tags & prompts.
+- ➕ **Add** — drop in images (from a URL, a local path, or raw bytes), snippets, links,
+  skills and MCP configs — they appear in the grid instantly.
+- 📦 **Hand off a whole collection** — export it as a ready-to-build context pack.
+
+```bash
+claude mcp add --transport http manather http://127.0.0.1:4319/mcp \
+  --header "Authorization: Bearer <your-token>"
+```
+
+**You stay in control.** The server listens on **127.0.0.1 only**, requires a private
+token, and is **off by default**. Per-capability **permission toggles** let you decide
+exactly what an agent may do — e.g. allow searching but block creating collections — and
+they apply instantly. It runs only while Manather is open. Built on Apple's
+Network.framework: no extra installs, no Node.
+
+---
+
 ## Screenshots
 
 <table>
@@ -207,6 +234,7 @@ The database stores only **relative paths**, so moving originals never breaks a 
 - [x] AI provider: prompt-based image variations, vision auto-tagging, AI-written brief
 - [x] Auto-import skills / MCP configs from `~/.claude/`
 - [x] Export straight into a git repo (init + first commit)
+- [x] **MCP server** — agents browse, add to, and export from your library (with per-capability permissions)
 - [x] Continuous integration + one-click `.dmg` releases
 
 **Next**

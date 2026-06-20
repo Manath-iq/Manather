@@ -309,6 +309,9 @@ struct ContentView: View {
         .onAppear {
             LibraryManager.ensureActive(context: modelContext)
             configureScreenshotHotKey()
+            // Bring up the local MCP server if the user has enabled it (Settings → MCP Server).
+            MCPServerManager.shared.configure(container: modelContext.container)
+            MCPServerManager.shared.startIfEnabled()
         }
         .onChange(of: screenshotHotKeyEnabled) { _, _ in configureScreenshotHotKey() }
         .onChange(of: screenshotHotKeyCode) { _, _ in configureScreenshotHotKey() }
