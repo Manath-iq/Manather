@@ -126,10 +126,11 @@ final class ImageCache {
 
         let url = FileManagerHelper.absolutePath(for: relativePath)
         
-        // Load the image off the main actor
-        guard let image = await Task.detached(priority: .userInitiated) { () -> NSImage? in
-            return NSImage(contentsOf: url)
-        }.value else {
+        // Load the image off the main actor. The closure is passed as a labeled
+        // `operation:` argument (not trailing) so it isn't read as the guard body.
+        guard let image = await Task.detached(priority: .userInitiated, operation: { () -> NSImage? in
+            NSImage(contentsOf: url)
+        }).value else {
             return nil
         }
 

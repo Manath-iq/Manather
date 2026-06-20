@@ -64,7 +64,7 @@ struct CollectionFolderCard: View {
         .onHover { hovering in
             isHovered = hovering
         }
-        .animation(.spring(response: 0.34, dampingFraction: 0.68), value: isHovered)
+        .animation(ManatherTheme.microMotion, value: isHovered)
     }
 
     // MARK: - Fanned tiles

@@ -345,7 +345,7 @@ struct InspectorView: View {
                     collectionNames: asset.collectionNames,
                     tags: tags
                 )
-                withAnimation(.spring(response: 0.4)) { modelContext.insert(newAsset) }
+                withAnimation(ManatherTheme.uiMotion) { modelContext.insert(newAsset) }
                 ColorIndexer.shared.ensureColors(for: newAsset)
 
                 isGenerating = false
@@ -368,7 +368,7 @@ struct InspectorView: View {
     private func noteSection(for asset: AssetItem) -> some View {
         if asset.notes.isEmpty && !isNoteExpanded {
             Button {
-                withAnimation(.spring(response: 0.3)) {
+                withAnimation(ManatherTheme.uiMotion) {
                     isNoteExpanded = true
                 }
             } label: {
@@ -452,7 +452,7 @@ struct InspectorView: View {
                             ColorCircle(color: color, hex: hex) {
                                 copyToClipboard(hex)
                                 copiedHex = hex
-                                withAnimation(.spring()) {
+                                withAnimation(ManatherTheme.uiMotion) {
                                     showCopiedToast = true
                                 }
                                 // Reset toast after 1.5 seconds
@@ -1048,7 +1048,7 @@ struct ColorCircle: View {
             )
             .scaleEffect(isHovered ? 1.2 : 1.0)
             .shadow(color: .black.opacity(isHovered ? 0.3 : 0.1), radius: isHovered ? 4 : 1, y: isHovered ? 2 : 1)
-            .animation(.spring(response: 0.2, dampingFraction: 0.6), value: isHovered)
+            .animation(ManatherTheme.microMotion, value: isHovered)
             .onHover { hovering in
                 isHovered = hovering
             }

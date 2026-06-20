@@ -90,8 +90,8 @@ final class MCPServerManager {
         do {
             try http.start(handler: { request in
                 await mcp.handle(request)
-            }, onStatus: { [weak self] running, error in
-                Task { @MainActor in
+            }, onStatus: { running, error in
+                Task { @MainActor [weak self] in
                     guard let self else { return }
                     self.isRunning = running
                     if let error, !running { self.lastError = error }

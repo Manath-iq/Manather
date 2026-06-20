@@ -66,7 +66,7 @@ enum AIClient {
 
     /// Sends a system+user prompt to the default provider's chat model.
     static func chat(system: String, user: String) async throws -> String {
-        guard let cfg = await resolveDefault() else { throw AIError.notConnected }
+        guard let cfg = resolveDefault() else { throw AIError.notConnected }
 
         let url: URL
         var headers: [String: String] = ["Content-Type": "application/json"]
@@ -109,7 +109,7 @@ enum AIClient {
 
     /// Generates one image variation of `asset` and returns PNG/JPEG data.
     static func generateVariation(of asset: AssetItem) async throws -> Data {
-        guard let cfg = await resolveDefault() else { throw AIError.notConnected }
+        guard let cfg = resolveDefault() else { throw AIError.notConnected }
         let prompt = asset.prompt.isEmpty ? asset.title : asset.prompt
 
         switch cfg.provider.kind {
@@ -185,7 +185,7 @@ enum AIClient {
     /// and returns 3–6 short topical tags. Throws if no provider is connected or
     /// the asset has no readable image file.
     static func suggestTags(for asset: AssetItem) async throws -> [String] {
-        guard let cfg = await resolveDefault() else { throw AIError.notConnected }
+        guard let cfg = resolveDefault() else { throw AIError.notConnected }
         guard !asset.relativeFilePath.isEmpty else { throw AIError.badResponse }
         let src = FileManagerHelper.absolutePath(for: asset.relativeFilePath)
         guard let imgData = try? Data(contentsOf: src) else { throw AIError.badResponse }

@@ -12,7 +12,7 @@ struct MicroAnimationButtonStyle: ButtonStyle {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
             .opacity(configuration.isPressed ? 0.85 : 1.0)
-            .animation(.spring(response: 0.25, dampingFraction: 0.65), value: configuration.isPressed)
+            .animation(ManatherTheme.microMotion, value: configuration.isPressed)
     }
 }
 

@@ -22,7 +22,10 @@ final class MCPHTTPServer: @unchecked Sendable {
 
     // MARK: - Request / response value types
 
-    struct HTTPRequest: Sendable {
+    // These are pure transport value types, built and read on the background
+    // networking queue, so they must stay off the main actor (the project
+    // defaults declarations to @MainActor).
+    nonisolated struct HTTPRequest: Sendable {
         let method: String
         let path: String
         /// Header names are lowercased for case-insensitive lookup.
@@ -30,7 +33,7 @@ final class MCPHTTPServer: @unchecked Sendable {
         let body: Data
     }
 
-    struct HTTPResponse: Sendable {
+    nonisolated struct HTTPResponse: Sendable {
         var status: Int
         var headers: [String: String]
         var body: Data

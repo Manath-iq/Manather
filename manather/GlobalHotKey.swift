@@ -118,6 +118,10 @@ enum ScreenshotCapture {
     /// When the user finishes a selection, the captured image is added to the
     /// library. Cancelling produces no file and adds nothing.
     static func captureInteractive(into context: ModelContext) {
+        // Capture the container (Sendable), not the context (non-Sendable): the
+        // Process termination handler is an @Sendable closure that runs off the
+        // main thread, so it can't carry a ModelContext across the boundary.
+        let container = context.container
         let tmpURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("manather-shot-\(UUID().uuidString).png")
 
@@ -126,16 +130,16 @@ enum ScreenshotCapture {
         // -i interactive selection, -o no shadow on window captures.
         task.arguments = ["-i", "-o", tmpURL.path]
         task.terminationHandler = { _ in
-            DispatchQueue.main.async {
-                defer { try? FileManager.default.removeItem(at: tmpURL) }
-                guard FileManager.default.fileExists(atPath: tmpURL.path),
-                      let data = try? Data(contentsOf: tmpURL) else {
-                    return // user cancelled the selection
-                }
-                // Save the PNG screencapture produced byte-for-byte — no re-encode,
-                // so full resolution and colour profile are preserved.
+            defer { try? FileManager.default.removeItem(at: tmpURL) }
+            guard FileManager.default.fileExists(atPath: tmpURL.path),
+                  let data = try? Data(contentsOf: tmpURL) else {
+                return // user cancelled the selection
+            }
+            // Save the PNG screencapture produced byte-for-byte — no re-encode,
+            // so full resolution and colour profile are preserved.
+            Task { @MainActor in
                 let stamp = Self.timestamp()
-                AssetIngest.ingestImageData(data, ext: "png", title: "Screenshot \(stamp)", into: context)
+                AssetIngest.ingestImageData(data, ext: "png", title: "Screenshot \(stamp)", into: container.mainContext)
             }
         }
 

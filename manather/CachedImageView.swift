@@ -80,7 +80,7 @@ struct CachedImageView: View {
 
         // Synchronous cache hit — swap immediately, no spinner
         if let cached = bestCachedImage() {
-            withAnimation(.easeOut(duration: 0.15)) {
+            withAnimation(ManatherTheme.fade) {
                 self.image = cached
                 self.loadedPath = path
                 self.isLoading = false
@@ -90,7 +90,7 @@ struct CachedImageView: View {
 
         // Keep the old image visible while the new one loads? No — clear it,
         // otherwise navigation appears stuck on the previous asset.
-        withAnimation(.easeOut(duration: 0.1)) {
+        withAnimation(ManatherTheme.fade) {
             self.image = nil
             self.loadedPath = nil
         }
@@ -108,7 +108,7 @@ struct CachedImageView: View {
             // Discard result if the view has moved on to a different path
             guard path == relativePath else { return }
 
-            withAnimation(.easeOut(duration: 0.2)) {
+            withAnimation(ManatherTheme.fade) {
                 self.image = loadedImage
                 self.loadedPath = loadedImage != nil ? path : nil
                 self.isLoading = false

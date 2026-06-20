@@ -113,7 +113,9 @@ final class AssetItem {
     }
 
     var aspectRatio: CGFloat {
-        guard imageHeight > 0 else { return 1.0 }
+        // Both dimensions must be positive: a zero width would otherwise yield a
+        // 0 ratio, and the masonry layout divides by it (1/ratio → infinity).
+        guard imageWidth > 0, imageHeight > 0 else { return 1.0 }
         return CGFloat(imageWidth / imageHeight)
     }
 

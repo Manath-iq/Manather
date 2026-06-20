@@ -68,7 +68,7 @@ struct AssetDetailView: View {
             }
             .onChange(of: geometry.size.width) { oldValue, newValue in
                 if newValue < 650 && showInspector {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    withAnimation(ManatherTheme.uiMotion) {
                         showInspector = false
                     }
                 }
@@ -178,7 +178,7 @@ struct AssetDetailView: View {
                                         }
                                         .onEnded { value in
                                             if zoomScale < 1.0 {
-                                                withAnimation(.spring()) {
+                                                withAnimation(ManatherTheme.uiMotion) {
                                                     zoomScale = 1.0
                                                     offset = .zero
                                                     lastOffset = .zero
@@ -196,7 +196,7 @@ struct AssetDetailView: View {
                                             .offset(offset)
                                             .gesture(dragGesture.simultaneously(with: magnifyGesture))
                                             .onTapGesture(count: 2) {
-                                                withAnimation(.spring(response: 0.3)) {
+                                                withAnimation(ManatherTheme.uiMotion) {
                                                     if zoomScale > 1.0 {
                                                         zoomScale = 1.0
                                                         offset = .zero
@@ -236,7 +236,7 @@ struct AssetDetailView: View {
                                     }
                                     .onEnded { value in
                                         if zoomScale < 1.0 {
-                                            withAnimation(.spring()) {
+                                            withAnimation(ManatherTheme.uiMotion) {
                                                 zoomScale = 1.0
                                                 offset = .zero
                                                 lastOffset = .zero
@@ -252,7 +252,7 @@ struct AssetDetailView: View {
                                         .offset(offset)
                                         .gesture(dragGesture.simultaneously(with: magnifyGesture))
                                         .onTapGesture(count: 2) {
-                                            withAnimation(.spring(response: 0.3)) {
+                                            withAnimation(ManatherTheme.uiMotion) {
                                                 if zoomScale > 1.0 {
                                                     zoomScale = 1.0
                                                     offset = .zero
@@ -503,7 +503,7 @@ struct AssetDetailView: View {
 
             // Toggle Inspector
             Button {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                withAnimation(ManatherTheme.uiMotion) {
                     showInspector.toggle()
                 }
             } label: {
@@ -637,7 +637,7 @@ struct AssetDetailView: View {
     private func navigatePrevious() {
         let idx = currentIndex
         guard idx > 0, idx - 1 < assets.count else { return }
-        withAnimation(.easeInOut(duration: 0.2)) {
+        withAnimation(ManatherTheme.fade) {
             selectedAsset = assets[idx - 1]
         }
     }
@@ -645,7 +645,7 @@ struct AssetDetailView: View {
     private func navigateNext() {
         let idx = currentIndex
         guard idx >= 0, idx + 1 < assets.count else { return }
-        withAnimation(.easeInOut(duration: 0.2)) {
+        withAnimation(ManatherTheme.fade) {
             selectedAsset = assets[idx + 1]
         }
     }
@@ -677,12 +677,12 @@ struct AssetDetailView: View {
         
         // Check for any cached image instantly (synchronously) to avoid black flash / loading spinners
         if let cached = ImageCache.shared.anyCachedImage(for: asset.relativeFilePath) {
-            withAnimation(.easeInOut(duration: 0.25)) {
+            withAnimation(ManatherTheme.fade) {
                 self.loadedImage = cached
                 self.isLoading = false
             }
         } else {
-            withAnimation(.easeInOut(duration: 0.25)) {
+            withAnimation(ManatherTheme.fade) {
                 self.loadedImage = nil
                 self.isLoading = true
             }
@@ -690,11 +690,11 @@ struct AssetDetailView: View {
         
         // Try cached blur thumbnail
         if let cachedBlur = ImageCache.shared.cachedThumbnail(for: asset.relativeFilePath, maxSize: 200) {
-            withAnimation(.easeInOut(duration: 0.25)) {
+            withAnimation(ManatherTheme.fade) {
                 self.blurImage = cachedBlur
             }
         } else {
-            withAnimation(.easeInOut(duration: 0.25)) {
+            withAnimation(ManatherTheme.fade) {
                 self.blurImage = nil
             }
         }
@@ -703,30 +703,58 @@ struct AssetDetailView: View {
         let assetID = asset.id
         
         loadTask = Task {
-            // Load a small thumbnail first for background blur (fast) if not cached
+            // Small thumbnail first for the background blur (fast) if not cached.
             if self.blurImage == nil {
                 let blurThumb = await ImageCache.shared.thumbnail(for: path, maxSize: 200)
-                guard !Task.isCancelled else { return }
-                withAnimation(.easeInOut(duration: 0.25)) {
+                guard !Task.isCancelled, self.selectedAsset?.id == assetID else { return }
+                withAnimation(ManatherTheme.fade) {
                     self.blurImage = blurThumb
                 }
             }
-            
-            // Then load full image
+
+            // Then the full-resolution image for the foreground.
             let img = await ImageCache.shared.fullImageAsync(for: path)
-            guard !Task.isCancelled else { return }
-            
-            if self.selectedAsset?.id == assetID {
-                withAnimation(.easeInOut(duration: 0.25)) {
-                    self.loadedImage = img
-                    self.blurImage = nil
-                    self.isLoading = false
+            guard !Task.isCancelled, self.selectedAsset?.id == assetID else { return }
+
+            withAnimation(ManatherTheme.fade) {
+                self.loadedImage = img
+                self.isLoading = false
+            }
+            // Keep `blurImage` (a tiny 200px thumb) as the background source — never
+            // null it. Otherwise the background would blur the full-resolution image
+            // every time, stalling a frame on open and on each navigation.
+
+            // Warm the neighbours so ← / → paging is instant (no spinner, no decode).
+            prefetchNeighbors()
+        }
+    }
+
+    /// Decode the previous/next images into the cache ahead of time, so paging
+    /// through the library with ← / → shows them instantly instead of flashing a
+    /// spinner while the full image decodes.
+    private func prefetchNeighbors() {
+        let idx = currentIndex
+        for n in [idx - 1, idx + 1] where n >= 0 && n < assets.count {
+            let neighbor = assets[n]
+            guard !neighbor.relativeFilePath.isEmpty else { continue }
+            switch neighbor.assetType {
+            case .image, .gif, .webLink:
+                let path = neighbor.relativeFilePath
+                Task(priority: .utility) {
+                    _ = await ImageCache.shared.thumbnail(for: path, maxSize: 200)
+                    _ = await ImageCache.shared.fullImageAsync(for: path)
                 }
+            case .video, .codeSnippet, .mcpServer, .skill:
+                break
             }
         }
     }
 
     private func limitOffset(viewSize: CGSize, imageSize: CGSize) {
+        // Avoid NaN offsets (which make the image jump off-screen) if a size is
+        // momentarily zero during layout or the image has degenerate dimensions.
+        guard viewSize.width > 0, viewSize.height > 0,
+              imageSize.width > 0, imageSize.height > 0 else { return }
         let viewRatio = viewSize.width / viewSize.height
         let imageRatio = imageSize.width / imageSize.height
         
@@ -747,7 +775,7 @@ struct AssetDetailView: View {
         let maxHorizontalOffset = max(0, (scaledWidth - viewSize.width) / 2)
         let maxVerticalOffset = max(0, (scaledHeight - viewSize.height) / 2)
         
-        withAnimation(.easeOut(duration: 0.15)) {
+        withAnimation(ManatherTheme.uiMotion) {
             offset = CGSize(
                 width: min(max(offset.width, -maxHorizontalOffset), maxHorizontalOffset),
                 height: min(max(offset.height, -maxVerticalOffset), maxVerticalOffset)

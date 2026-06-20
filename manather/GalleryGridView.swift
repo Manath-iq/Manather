@@ -328,7 +328,7 @@ struct GalleryGridView: View {
                 .padding(14)
                 .opacity(isDropTargeted ? 1 : 0)
                 .scaleEffect(isDropTargeted ? 1.01 : 1.0)
-                .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isDropTargeted)
+                .animation(ManatherTheme.uiMotion, value: isDropTargeted)
         )
         .onDrop(of: [.image, .movie, .fileURL], isTargeted: $isDropTargeted) { providers in
             handleDrop(providers: providers)
@@ -422,21 +422,21 @@ struct GalleryGridView: View {
                 .keyboardShortcut("f", modifiers: .command)
                 
                 Button("") {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    withAnimation(ManatherTheme.uiMotion) {
                         selectedTab = .library
                     }
                 }
                 .keyboardShortcut("1", modifiers: .command)
                 
                 Button("") {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    withAnimation(ManatherTheme.uiMotion) {
                         selectedTab = .collections
                     }
                 }
                 .keyboardShortcut("2", modifiers: .command)
                 
                 Button("") {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    withAnimation(ManatherTheme.uiMotion) {
                         selectedTab = .spaces
                     }
                 }
@@ -572,7 +572,7 @@ struct GalleryGridView: View {
     /// the dropdown match the app's add/right-click menus.
     private var libraryMenu: some View {
         Button {
-            withAnimation(ManatherTheme.overlayMotion) { showLibraryMenu.toggle() }
+            withAnimation(ManatherTheme.menuMotion) { showLibraryMenu.toggle() }
         } label: {
             HStack(spacing: 5) {
                 Text(currentLibraryName)
@@ -615,7 +615,7 @@ struct GalleryGridView: View {
     }
 
     private func closeLibraryMenu() {
-        withAnimation(.easeOut(duration: 0.14)) { showLibraryMenu = false }
+        withAnimation(ManatherTheme.menuMotion) { showLibraryMenu = false }
     }
 
     private func switchLibrary(to library: Library) {
@@ -666,7 +666,7 @@ struct GalleryGridView: View {
     }
 
     private func expandSearch() {
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+        withAnimation(ManatherTheme.uiMotion) {
             isSearchExpanded = true
         }
         // Focus after the field exists in the hierarchy
@@ -677,7 +677,7 @@ struct GalleryGridView: View {
 
     private func collapseSearch() {
         isSearchFocused = false
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+        withAnimation(ManatherTheme.uiMotion) {
             isSearchExpanded = false
         }
     }
@@ -753,7 +753,7 @@ struct GalleryGridView: View {
     private var rightToolbarIcons: some View {
         HStack(spacing: 6) {
             toolbarIconButton(icon: isDarkMode ? "sun.max.fill" : "moon", tooltip: "Toggle Dark Mode") {
-                withAnimation(.easeInOut(duration: 0.2)) {
+                withAnimation(ManatherTheme.uiMotion) {
                     isDarkMode.toggle()
                 }
             }
@@ -783,7 +783,7 @@ struct GalleryGridView: View {
     }
 
     private func closeSettings() {
-        withAnimation(.easeOut(duration: 0.14)) { showSettings = false }
+        withAnimation(ManatherTheme.overlayMotion) { showSettings = false }
     }
 
     private func toolbarIconButton(icon: String, tooltip: String, action: @escaping () -> Void) -> some View {
@@ -846,7 +846,7 @@ struct GalleryGridView: View {
 
     private var addFAB: some View {
         Button {
-            withAnimation(ManatherTheme.overlayMotion) { showAddMenu.toggle() }
+            withAnimation(ManatherTheme.menuMotion) { showAddMenu.toggle() }
         } label: {
             ZStack {
                 Circle()
@@ -862,8 +862,8 @@ struct GalleryGridView: View {
             }
             .frame(width: 58, height: 58)
             .scaleEffect(isFABHovered ? 1.06 : 1.0)
-            .animation(.spring(response: 0.28, dampingFraction: 0.65), value: isFABHovered)
-            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: showAddMenu)
+            .animation(ManatherTheme.microMotion, value: isFABHovered)
+            .animation(ManatherTheme.menuMotion, value: showAddMenu)
         }
         .buttonStyle(.plain)
         .focusable(false)
@@ -898,7 +898,7 @@ struct GalleryGridView: View {
     }
 
     private func closeAddMenu() {
-        withAnimation(.easeOut(duration: 0.14)) { showAddMenu = false }
+        withAnimation(ManatherTheme.menuMotion) { showAddMenu = false }
     }
 
     private var categoryTabs: some View {
@@ -952,7 +952,7 @@ struct GalleryGridView: View {
                             Text(colorF.label)
                                 .font(.system(size: 11, weight: .medium))
                             Button {
-                                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                withAnimation(ManatherTheme.uiMotion) {
                                     activeColorFilter = nil
                                 }
                             } label: {
@@ -1506,7 +1506,7 @@ struct GalleryGridView: View {
             Slider(value: Binding(
                 get: { columnCount },
                 set: { newValue in
-                    withAnimation(.spring(response: 0.40, dampingFraction: 0.85)) {
+                    withAnimation(ManatherTheme.uiMotion) {
                         columnCount = newValue
                     }
                 }
@@ -1529,7 +1529,7 @@ struct GalleryGridView: View {
                     isActive: activeColorFilter == base,
                     isDimmed: activeColorFilter != nil && activeColorFilter != base
                 ) {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    withAnimation(ManatherTheme.uiMotion) {
                         activeColorFilter = (activeColorFilter == base) ? nil : base
                     }
                 }
@@ -1537,7 +1537,7 @@ struct GalleryGridView: View {
 
             if activeColorFilter != nil {
                 Button {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    withAnimation(ManatherTheme.uiMotion) {
                         activeColorFilter = nil
                     }
                 } label: {
@@ -1637,7 +1637,7 @@ struct GalleryGridView: View {
                                         selectedAsset = asset
                                     },
                                     onContextMenu: { frame in
-                                        withAnimation(.spring(response: 0.26, dampingFraction: 0.82)) {
+                                        withAnimation(ManatherTheme.menuMotion) {
                                             contextTarget = ContextTarget(asset: asset, frame: frame)
                                         }
                                     }
@@ -1670,7 +1670,7 @@ struct GalleryGridView: View {
                 ForEach(names, id: \.self) { name in
                     let items = live.filter { $0.inCollection(name) }
                     Button {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                        withAnimation(ManatherTheme.uiMotion) {
                             activeCollectionFilter = name
                         }
                     } label: {
@@ -1762,7 +1762,7 @@ struct GalleryGridView: View {
                     .foregroundStyle(ManatherTheme.ink.opacity(0.72))
 
                 Button("Clear color filter") {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    withAnimation(ManatherTheme.uiMotion) {
                         activeColorFilter = nil
                     }
                 }
@@ -1793,7 +1793,7 @@ struct GalleryGridView: View {
                             .foregroundStyle(ManatherTheme.ink.opacity(0.45))
                     }
                     .scaleEffect(isDropTargeted ? 1.06 : 1.0)
-                    .animation(.spring(response: 0.4, dampingFraction: 0.5).repeatForever(autoreverses: true), value: isDropTargeted)
+                    .animation(ManatherTheme.pulse, value: isDropTargeted)
 
                     Text("Drop assets here")
                         .font(.system(size: 18, weight: .semibold))
@@ -1859,7 +1859,7 @@ struct GalleryGridView: View {
 
     private func moveAssetToTrash(_ asset: AssetItem) {
         if selectedAsset?.id == asset.id {
-            withAnimation(.spring(response: 0.35)) {
+            withAnimation(ManatherTheme.overlayMotion) {
                 selectedAsset = nil
             }
         }
@@ -1929,7 +1929,7 @@ struct GalleryGridView: View {
     }
 
     private func dismissContextMenu() {
-        withAnimation(.easeOut(duration: 0.14)) {
+        withAnimation(ManatherTheme.menuMotion) {
             contextTarget = nil
         }
     }
@@ -2007,7 +2007,7 @@ struct GalleryGridView: View {
         asset.isDeleted = true
 
         if selectedAsset?.id == id {
-            withAnimation(.spring(response: 0.35)) {
+            withAnimation(ManatherTheme.overlayMotion) {
                 selectedAsset = nil
             }
         }
@@ -2060,8 +2060,8 @@ struct ColorFilterSwatch: View {
                 )
                 .scaleEffect(isHovered || isActive ? 1.25 : 1.0)
                 .opacity(isDimmed ? 0.35 : 1.0)
-                .animation(.spring(response: 0.25, dampingFraction: 0.6), value: isHovered)
-                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isActive)
+                .animation(ManatherTheme.microMotion, value: isHovered)
+                .animation(ManatherTheme.uiMotion, value: isActive)
         }
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }

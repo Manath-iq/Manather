@@ -54,7 +54,7 @@ enum AssetIngest {
                     codeLanguage: codeLanguage,
                     codeContent: codeContent
                 )
-                withAnimation(.spring(response: 0.4)) { context.insert(asset) }
+                withAnimation(ManatherTheme.uiMotion) { context.insert(asset) }
                 ColorIndexer.shared.ensureColors(for: asset)
             }
         }
@@ -78,7 +78,7 @@ enum AssetIngest {
                 imageHeight: dims?.height ?? 0,
                 typeRaw: ext.lowercased() == "gif" ? "gif" : "image"
             )
-            withAnimation(.spring(response: 0.4)) { context.insert(asset) }
+            withAnimation(ManatherTheme.uiMotion) { context.insert(asset) }
             ColorIndexer.shared.ensureColors(for: asset)
         }
     }
@@ -96,7 +96,7 @@ enum AssetIngest {
             imageHeight: size.height,
             typeRaw: "image"
         )
-        withAnimation(.spring(response: 0.4)) { context.insert(asset) }
+        withAnimation(ManatherTheme.uiMotion) { context.insert(asset) }
         ColorIndexer.shared.ensureColors(for: asset)
     }
 
@@ -130,7 +130,7 @@ enum AssetIngest {
                 imageHeight: dims?.height ?? 0,
                 typeRaw: finalExt.lowercased() == "gif" ? "gif" : "image"
             )
-            withAnimation(.spring(response: 0.4)) { context.insert(asset) }
+            withAnimation(ManatherTheme.uiMotion) { context.insert(asset) }
             ColorIndexer.shared.ensureColors(for: asset)
         }
     }
@@ -179,7 +179,7 @@ enum AssetIngest {
             codeLanguage: "Text",
             codeContent: trimmed
         )
-        withAnimation(.spring(response: 0.4)) { context.insert(asset) }
+        withAnimation(ManatherTheme.uiMotion) { context.insert(asset) }
     }
 
     // MARK: - Smart paste

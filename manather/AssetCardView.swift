@@ -49,8 +49,8 @@ struct AssetCardView: View {
                 radius: isHovered ? 12 : 4,
                 y: isHovered ? 6 : 2
             )
-            .animation(.spring(response: 0.35, dampingFraction: 0.72), value: isHovered)
-            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isSelected)
+            .animation(ManatherTheme.microMotion, value: isHovered)
+            .animation(ManatherTheme.uiMotion, value: isSelected)
             .onHover { hovering in
                 isHovered = hovering
             }

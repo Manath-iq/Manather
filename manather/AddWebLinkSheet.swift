@@ -12,32 +12,34 @@ struct AddWebLinkSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
+    @AppStorage("isDarkMode") private var isDarkMode = false
     @State private var urlString = ""
     @State private var isFetching = false
     @State private var errorMessage = ""
+    @FocusState private var isFieldFocused: Bool
 
     var body: some View {
-        VStack(spacing: 16) {
-            Text("Add Web Link")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(.white)
+        VStack(alignment: .leading, spacing: 14) {
+            SheetHeader(icon: "link", title: "Add Web Link")
 
-            Text("Paste a URL to save a website bookmark")
+            Text("Paste a URL to save a website bookmark.")
                 .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.white.opacity(0.56))
+                .foregroundStyle(ManatherTheme.mutedInk)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
             TextField("example.com", text: $urlString)
                 .textFieldStyle(.plain)
                 .font(.system(size: 13))
-                .foregroundStyle(.white)
+                .foregroundStyle(ManatherTheme.ink)
+                .focused($isFieldFocused)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 8)
                 .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(ManatherTheme.viewerField)
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(isDarkMode ? Color.white.opacity(0.06) : Color.black.opacity(0.04))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .stroke(errorMessage.isEmpty ? ManatherTheme.viewerBorder : Color.red.opacity(0.55), lineWidth: 1)
+                            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                .stroke(errorMessage.isEmpty ? ManatherTheme.hairline : Color.red.opacity(0.55), lineWidth: 1)
                         )
                 )
                 .onChange(of: urlString) { _, _ in
@@ -48,58 +50,25 @@ struct AddWebLinkSheet: View {
                         fetchAndSave()
                     }
                 }
-                .frame(width: 300)
 
             if !errorMessage.isEmpty {
                 Text(errorMessage)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(Color.red.opacity(0.82))
-                    .frame(width: 300, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
 
-            HStack(spacing: 12) {
-                Button("Cancel") {
-                    dismiss()
-                }
-                .buttonStyle(.microAnimated)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.white.opacity(0.7))
-                .padding(.horizontal, 16)
-                .padding(.vertical, 6)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(Color.white.opacity(0.10))
-                )
-
-                Button {
-                    fetchAndSave()
-                } label: {
-                    if isFetching {
-                        ProgressView()
-                            .controlSize(.mini)
-                    } else {
-                        Text("Add URL")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(.white)
-                    }
-                }
-                .buttonStyle(.microAnimated)
-                .disabled(urlString.isEmpty || isFetching)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 6)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(urlString.isEmpty || isFetching ? ManatherTheme.accent.opacity(0.40) : ManatherTheme.accent)
-                )
-            }
-            .padding(.top, 8)
+            SheetFooter(
+                primaryTitle: "Add URL",
+                primaryEnabled: !urlString.isEmpty,
+                isPrimaryLoading: isFetching,
+                onCancel: { dismiss() },
+                onPrimary: { fetchAndSave() }
+            )
         }
-        .padding(20)
-        .frame(width: 360, height: errorMessage.isEmpty ? 190 : 214)
-        .background(
-            VisualEffectView(material: .hudWindow, blendingMode: .withinWindow, forceDark: true)
-        )
+        .sheetCard(width: 420)
+        .onAppear { isFieldFocused = true }
     }
 
     private func fetchAndSave() {
@@ -109,7 +78,7 @@ struct AddWebLinkSheet: View {
         }
 
         guard let url = URL(string: cleanURLString), url.host != nil else {
-            withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
+            withAnimation(ManatherTheme.uiMotion) {
                 errorMessage = "Enter a valid website address."
             }
             return
@@ -120,7 +89,7 @@ struct AddWebLinkSheet: View {
 
         Task {
             var pageTitle = url.host ?? "Web Link"
-            
+
             do {
                 let (data, _) = try await URLSession.shared.data(from: url)
                 if let html = String(data: data, encoding: .utf8),

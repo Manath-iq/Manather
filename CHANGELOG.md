@@ -9,6 +9,31 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 _Nothing yet — your next change goes here._
 
+## [0.1.12] — 2026-06-20
+
+### Changed
+- **Redesigned the "Add" dialogs.** Add Web Link, Add Code Snippet, Add MCP
+  Server and Add Skill now use the app's own paper-card style (light/dark aware),
+  matching the menus and the New Collection / New Board sheets — instead of the
+  old forced-dark gray panels.
+- **One coherent motion system.** All animations were consolidated into a small,
+  well-damped palette (hover, UI, overlay, menu, pulse, fade). Removed the
+  scattered, under-damped springs that made motion feel jerky and inconsistent,
+  and fixed competing animations firing on the same action.
+
+### Fixed
+- **Snappier image viewer.** Opening and paging through images no longer stutters:
+  the blurred background now always uses a tiny thumbnail (it used to blur the
+  full-resolution image on every open/navigation), and the previous/next images
+  are pre-decoded so ← / → is instant instead of flashing a spinner.
+- **Masonry layout glitch.** An asset with a missing width could make a column
+  grow "infinitely tall" (a divide-by-zero in the layout) and skew the grid.
+- **Viewer pan no longer jumps off-screen** when a size is momentarily zero
+  (NaN-offset guard).
+- **Swift 6 concurrency correctness** — resolved the data-isolation warnings in
+  the screenshot hotkey, the MCP server lifecycle, the HTTP transport types and
+  the AI client, so the app builds clean.
+
 ## [0.1.11] — 2026-06-20
 
 ### Added

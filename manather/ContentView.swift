@@ -52,11 +52,23 @@ enum ManatherTheme {
     static let titleBarInset: CGFloat = 28
 
     // MARK: - Motion
-    // Shared animation curves so every transition in the app feels the same.
-    /// For large overlays opening / closing (the full-screen viewer).
-    static let overlayMotion = Animation.spring(response: 0.42, dampingFraction: 0.82)
-    /// For small UI state changes (tabs, toggles, filters, search field).
-    static let uiMotion = Animation.spring(response: 0.32, dampingFraction: 0.82)
+    //
+    // One small, well-damped vocabulary so every animation in the app feels the
+    // same. High damping (≥0.86) removes the overshoot/bounce that made motion
+    // look jittery; only `microMotion` keeps a hint of life for tactile feedback.
+    // Pick the curve by intent — never inline an ad-hoc spring:
+    //   • microMotion   — hover lift, button press, small scale (tactile)
+    //   • uiMotion      — tabs, filters, selection, toggles, layout, zoom
+    //   • overlayMotion — viewer / board / settings / large overlays
+    //   • menuMotion    — floating menus & popovers (open + close)
+    //   • pulse         — gentle continuous loop (drag-drop target ring)
+    //   • fade          — image / screenshot crossfades
+    static let microMotion = Animation.spring(response: 0.30, dampingFraction: 0.86)
+    static let uiMotion = Animation.spring(response: 0.34, dampingFraction: 0.90)
+    static let overlayMotion = Animation.spring(response: 0.42, dampingFraction: 0.90)
+    static let menuMotion = Animation.spring(response: 0.26, dampingFraction: 0.92)
+    static let pulse = Animation.easeInOut(duration: 0.95).repeatForever(autoreverses: true)
+    static let fade = Animation.easeOut(duration: 0.18)
 
     // Neutral charcoal — matches GatherOS inspector (no teal/blue tint)
     static let viewerBackground = Color(red: 0.075, green: 0.08, blue: 0.09)
@@ -125,7 +137,7 @@ struct HoverLift: ViewModifier {
                 radius: isHovered ? liftedRadius : 5,
                 y: isHovered ? 6 : 2
             )
-            .animation(.spring(response: 0.35, dampingFraction: 0.72), value: isHovered)
+            .animation(ManatherTheme.microMotion, value: isHovered)
             .onHover { isHovered = $0 }
     }
 }
