@@ -7,7 +7,7 @@
 ### The native macOS home for everything you feed your AI.
 
 Collect references, skills, MCP servers, snippets, and prompts —
-then export any project as a ready-to-use **context pack** for your AI agent.
+then hand any project to your AI agent as a single, ready-to-build **context pack**.
 
 [![Platform](https://img.shields.io/badge/macOS-14%2B-black?logo=apple&logoColor=white)](https://www.apple.com/macos/)
 [![Latest release](https://img.shields.io/github/v/release/Manath-iq/Manather?label=latest&color=2563eb)](https://github.com/Manath-iq/Manather/releases/latest)
@@ -23,13 +23,7 @@ then export any project as a ready-to-use **context pack** for your AI agent.
 
 <br/>
 
-<a href="https://github.com/Manath-iq/Manather/releases">
-  <img src="https://img.shields.io/github/downloads/Manath-iq/Manather/total?style=flat-square&color=22c55e&label=%E2%AC%87%20downloads%20and%20counting&labelColor=0b1220" alt="Total downloads" />
-</a>
-
-<br/>
-
-<sub>Apple Silicon · macOS 14+ · free & open source — or [build from source](#build-from-source)</sub>
+<sub>Apple Silicon · macOS 14+ · free & open source · no account, no cloud — or [build from source](#build-from-source)</sub>
 
 <br/><br/>
 
@@ -39,13 +33,25 @@ then export any project as a ready-to-use **context pack** for your AI agent.
 
 ---
 
+## Get started in 60 seconds
+
+1. **[⬇ Download the latest `.dmg`](https://github.com/Manath-iq/Manather/releases/latest)** (Apple Silicon).
+2. Open it and drag **Manather** into your **Applications** folder.
+3. **First launch:** the app isn't notarized by Apple yet, so macOS shows a warning.
+   Right-click **Manather → Open → Open** (you only do this once).
+4. Drag in a screenshot, a link, or a code snippet — and you're off.
+
+> Everything stays **on your Mac**. No account, no sign-in, nothing uploaded anywhere.
+
+---
+
 ## Why Manather?
 
 Vibe-coders build by feeding AI agents the right **context**: design references, reusable skills,
 MCP server configs, code snippets, reference links, and carefully tuned prompts.
 
 Today that context is scattered — across Finder folders, random screenshots, Notes, and chat history.
-When you start a new project you rebuild it from scratch.
+Every new project, you rebuild it from scratch.
 
 **Manather is one home for all of it.** Save your building blocks once, organize them visually, and
 when you're ready, hand a whole project to your agent as a single clean folder it can read.
@@ -132,6 +138,27 @@ dark themes · search (**⌘F**) and quick tab switching · fluid, consistent mo
 
 ---
 
+## Screenshots
+
+<table>
+  <tr>
+    <td width="50%"><img src="media/library.png" alt="Library grid" /></td>
+    <td width="50%"><img src="media/board.png" alt="Moodboard canvas" /></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Library</b> — masonry grid, color filter, search</td>
+    <td align="center"><b>Boards</b> — moodboard canvas</td>
+  </tr>
+  <tr>
+    <td colspan="2"><img src="media/collections.png" alt="Collections" /></td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center"><b>Collections</b> — group saves together</td>
+  </tr>
+</table>
+
+---
+
 ## Connect your AI agent (MCP)
 
 Manather doubles as a local **MCP server**, so an AI agent — Claude Code, Cursor, or
@@ -155,41 +182,8 @@ claude mcp add --transport http manather http://127.0.0.1:4319/mcp \
 token, and is **off by default**. Per-capability **permission toggles** let you decide
 exactly what an agent may do — e.g. allow searching but block creating collections — and
 they apply instantly. It runs only while Manather is open. Built on Apple's
-Network.framework: no extra installs, no Node.
-
----
-
-## Screenshots
-
-<table>
-  <tr>
-    <td width="50%"><img src="media/library.png" alt="Library grid" /></td>
-    <td width="50%"><img src="media/board.png" alt="Moodboard canvas" /></td>
-  </tr>
-  <tr>
-    <td align="center"><b>Library</b> — masonry grid, color filter, search</td>
-    <td align="center"><b>Boards</b> — moodboard canvas</td>
-  </tr>
-  <tr>
-    <td colspan="2"><img src="media/collections.png" alt="Collections" /></td>
-  </tr>
-  <tr>
-    <td colspan="2" align="center"><b>Collections</b> — group saves together</td>
-  </tr>
-</table>
-
----
-
-## Install
-
-**[⬇ Download the latest `.dmg`](https://github.com/Manath-iq/Manather/releases/latest)** — built for Apple Silicon.
-
-1. Open the `.dmg` and drag **Manather** into your **Applications** folder.
-2. First launch: the app isn't notarized by Apple yet, so macOS shows a warning.
-   Right-click **Manather → Open → Open**, or allow it under
-   **System Settings → Privacy & Security → Open Anyway**.
-
-> Your data stays on your Mac. Files are copied into the app's sandbox; nothing is uploaded anywhere.
+Network.framework: no extra installs, no Node. See **[SECURITY.md](SECURITY.md)** for the
+full security model.
 
 ---
 
@@ -203,7 +197,15 @@ cd Manather
 open manather.xcodeproj
 ```
 
-Press **⌘R** in Xcode to build and run.
+Press **⌘R** in Xcode to build and run. Or from the command line:
+
+```bash
+xcodebuild -project manather.xcodeproj -scheme manather \
+  -destination 'platform=macOS' build
+```
+
+**No Mac handy?** Every push runs the [Build workflow](../../actions/workflows/build.yml) on a
+macOS runner — a green check means it compiles.
 
 ---
 
@@ -212,11 +214,12 @@ Press **⌘R** in Xcode to build and run.
 | Layer | Technology |
 |---|---|
 | UI | SwiftUI + AppKit bridges |
-| Data | SwiftData (local-first, sandboxed) |
+| Data | SwiftData (local-first) |
 | Masonry layout | Custom column distribution |
 | Thumbnails | ImageIO / CoreGraphics with an `NSCache` tier |
 | Color extraction | CoreGraphics bitmap sampling + hue bucketing |
 | Web previews | Headless `WKWebView` |
+| MCP server | JSON-RPC 2.0 over loopback HTTP (`Network.framework`) |
 | Storage | `~/Library/Application Support/ManatherAssets/` |
 
 The database stores only **relative paths**, so moving originals never breaks a link and memory stays light.
