@@ -189,6 +189,16 @@ Network.framework: no extra installs, no Node.
    Right-click **Manather → Open → Open**, or allow it under
    **System Settings → Privacy & Security → Open Anyway**.
 
+### Or install with Homebrew
+
+```bash
+brew install --cask manath-iq/manather/manather
+```
+
+Updates come through the same channel — `brew upgrade --cask manather` always
+pulls the newest release. The cask clears the Gatekeeper quarantine for you, so
+no right-click dance on first launch.
+
 > Your data stays on your Mac. Files are copied into the app's sandbox; nothing is uploaded anywhere.
 
 ---
