@@ -17,6 +17,10 @@ then export any project as a ready-to-use **context pack** for your AI agent.
 
 <br/>
 
+<a href="https://manath-iq.github.io/manather-site/">
+  <img src="https://img.shields.io/badge/🌐%20Visit%20the%20Website-manather-0b1220?style=for-the-badge" alt="Visit the Manather website" />
+</a>
+&nbsp;
 <a href="https://github.com/Manath-iq/Manather/releases/latest">
   <img src="https://img.shields.io/badge/⬇%20Download%20for%20macOS-Latest%20.dmg-2563eb?style=for-the-badge&logo=apple&logoColor=white" alt="Download the latest macOS .dmg" />
 </a>
